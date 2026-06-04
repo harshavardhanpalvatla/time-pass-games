@@ -1,0 +1,1382 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Connect 4 — Neon Arena</title>
+<script src="https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/gsap@3.12.4/dist/gsap.min.js"></script>
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body {
+    background: #000;
+    overflow: hidden;
+    font-family: 'Segoe UI', system-ui, sans-serif;
+    user-select: none;
+  }
+  #canvas-container {
+    position: fixed;
+    inset: 0;
+  }
+  canvas { display: block; }
+
+  /* ── HUD overlay ── */
+  #hud {
+    position: fixed;
+    inset: 0;
+    pointer-events: none;
+    z-index: 10;
+  }
+
+  /* Score bar */
+  #score-bar {
+    position: absolute;
+    top: 18px;
+    left: 50%;
+    transform: translateX(-50%);
+    display: flex;
+    align-items: center;
+    gap: 24px;
+    background: rgba(5,5,20,0.65);
+    border: 1px solid rgba(255,255,255,0.08);
+    backdrop-filter: blur(14px);
+    border-radius: 50px;
+    padding: 10px 32px;
+    box-shadow: 0 0 30px rgba(0,0,0,0.5);
+  }
+  .player-score {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 2px;
+  }
+  .player-label {
+    font-size: 11px;
+    font-weight: 700;
+    letter-spacing: 2px;
+    text-transform: uppercase;
+    opacity: 0.7;
+  }
+  .score-num {
+    font-size: 28px;
+    font-weight: 900;
+    line-height: 1;
+    text-shadow: 0 0 12px currentColor;
+  }
+  #p1-label, #p1-score { color: #ff2244; }
+  #p2-label, #p2-score { color: #ffdd00; }
+
+  /* Mode toggle */
+  #mode-bar {
+    position: absolute;
+    top: 18px;
+    right: 24px;
+    display: flex;
+    gap: 8px;
+    align-items: center;
+  }
+  .mode-btn {
+    pointer-events: all;
+    cursor: pointer;
+    background: rgba(5,5,20,0.65);
+    border: 1px solid rgba(255,255,255,0.12);
+    color: rgba(255,255,255,0.45);
+    font-size: 11px;
+    font-weight: 700;
+    letter-spacing: 1.5px;
+    text-transform: uppercase;
+    padding: 8px 16px;
+    border-radius: 30px;
+    backdrop-filter: blur(14px);
+    transition: all 0.2s;
+  }
+  .mode-btn.active {
+    border-color: #4466ff;
+    color: #fff;
+    background: rgba(30,40,120,0.7);
+    box-shadow: 0 0 16px rgba(68,102,255,0.4);
+  }
+  .mode-btn:hover:not(.active) {
+    background: rgba(255,255,255,0.08);
+    color: rgba(255,255,255,0.75);
+  }
+
+  /* CPU thinking indicator */
+  #cpu-thinking {
+    position: absolute;
+    bottom: 90px;
+    left: 50%;
+    transform: translateX(-50%);
+    background: rgba(5,5,20,0.75);
+    border: 1px solid rgba(68,102,255,0.3);
+    backdrop-filter: blur(14px);
+    border-radius: 30px;
+    padding: 8px 22px;
+    color: #4488ff;
+    font-size: 12px;
+    font-weight: 700;
+    letter-spacing: 2px;
+    text-transform: uppercase;
+    display: none;
+    box-shadow: 0 0 20px rgba(68,102,255,0.2);
+  }
+  #cpu-thinking.visible { display: block; animation: thinkPulse 0.8s ease-in-out infinite alternate; }
+  @keyframes thinkPulse {
+    from { opacity: 0.6; } to { opacity: 1; box-shadow: 0 0 30px rgba(68,102,255,0.5); }
+  }
+  .score-sep {
+    font-size: 22px;
+    color: rgba(255,255,255,0.2);
+    font-weight: 200;
+  }
+
+  /* Turn indicator */
+  #turn-bar {
+    position: absolute;
+    bottom: 28px;
+    left: 50%;
+    transform: translateX(-50%);
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 10px;
+  }
+  #turn-panel {
+    background: rgba(5,5,20,0.70);
+    border: 1px solid rgba(255,255,255,0.10);
+    backdrop-filter: blur(14px);
+    border-radius: 40px;
+    padding: 10px 28px;
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    box-shadow: 0 0 30px rgba(0,0,0,0.5);
+  }
+  #turn-disc {
+    width: 18px; height: 18px;
+    border-radius: 50%;
+    background: #ff2244;
+    box-shadow: 0 0 14px currentColor;
+    transition: background 0.3s, box-shadow 0.3s;
+    flex-shrink: 0;
+  }
+  #turn-text {
+    font-size: 14px;
+    font-weight: 700;
+    letter-spacing: 1.5px;
+    color: #fff;
+    text-transform: uppercase;
+  }
+  #restart-btn {
+    pointer-events: all;
+    cursor: pointer;
+    background: rgba(255,255,255,0.05);
+    border: 1px solid rgba(255,255,255,0.15);
+    color: rgba(255,255,255,0.6);
+    font-size: 11px;
+    font-weight: 700;
+    letter-spacing: 2px;
+    text-transform: uppercase;
+    padding: 8px 22px;
+    border-radius: 30px;
+    backdrop-filter: blur(10px);
+    transition: all 0.2s;
+  }
+  #restart-btn:hover, #back-menu-btn:hover {
+    background: rgba(255,255,255,0.12);
+    color: #fff;
+    border-color: rgba(255,255,255,0.35);
+    box-shadow: 0 0 20px rgba(255,255,255,0.1);
+  }
+  #back-menu-btn {
+    pointer-events: all;
+    cursor: pointer;
+    background: rgba(255,255,255,0.03);
+    border: 1px solid rgba(255,255,255,0.10);
+    color: rgba(255,255,255,0.4);
+    font-size: 11px;
+    font-weight: 700;
+    letter-spacing: 2px;
+    text-transform: uppercase;
+    padding: 8px 22px;
+    border-radius: 30px;
+    backdrop-filter: blur(10px);
+    transition: all 0.2s;
+  }
+
+  /* Win banner */
+  #win-banner {
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%) scale(0.6);
+    opacity: 0;
+    pointer-events: none;
+    text-align: center;
+    transition: none;
+  }
+  #win-banner.show {
+    pointer-events: all;
+    animation: bannerIn 0.5s cubic-bezier(0.175,0.885,0.32,1.275) forwards;
+  }
+  @keyframes bannerIn {
+    to { transform: translate(-50%,-50%) scale(1); opacity: 1; }
+  }
+  #win-title {
+    font-size: clamp(36px, 6vw, 72px);
+    font-weight: 900;
+    letter-spacing: 3px;
+    text-transform: uppercase;
+    text-shadow: 0 0 30px currentColor, 0 0 60px currentColor;
+    margin-bottom: 8px;
+    animation: textPulse 1s ease-in-out infinite alternate;
+  }
+  @keyframes textPulse {
+    from { text-shadow: 0 0 20px currentColor, 0 0 40px currentColor; }
+    to   { text-shadow: 0 0 40px currentColor, 0 0 80px currentColor, 0 0 120px currentColor; }
+  }
+  #win-sub {
+    font-size: 14px;
+    color: rgba(255,255,255,0.5);
+    letter-spacing: 3px;
+    text-transform: uppercase;
+    margin-bottom: 24px;
+  }
+  #win-play-again {
+    pointer-events: all;
+    cursor: pointer;
+    background: rgba(255,255,255,0.1);
+    border: 1.5px solid rgba(255,255,255,0.3);
+    color: #fff;
+    font-size: 13px;
+    font-weight: 700;
+    letter-spacing: 3px;
+    text-transform: uppercase;
+    padding: 12px 32px;
+    border-radius: 40px;
+    backdrop-filter: blur(12px);
+    transition: all 0.2s;
+  }
+  #win-play-again:hover {
+    background: rgba(255,255,255,0.2);
+    box-shadow: 0 0 30px rgba(255,255,255,0.2);
+  }
+
+  /* Column hover arrows */
+  #col-arrows {
+    position: absolute;
+    top: 0; left: 0;
+    width: 100%; height: 100%;
+    pointer-events: none;
+  }
+
+  /* ── MAIN MENU ── */
+  #main-menu {
+    position: fixed;
+    inset: 0;
+    z-index: 100;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 0;
+    background: rgba(2,2,15,0.82);
+    backdrop-filter: blur(18px);
+  }
+  #main-menu.hidden {
+    pointer-events: none;
+    animation: menuOut 0.45s cubic-bezier(0.4,0,1,1) forwards;
+  }
+  @keyframes menuOut {
+    to { opacity: 0; transform: scale(1.04); }
+  }
+
+  .menu-logo {
+    font-size: clamp(48px, 9vw, 96px);
+    font-weight: 900;
+    letter-spacing: 6px;
+    text-transform: uppercase;
+    margin-bottom: 6px;
+    line-height: 1;
+  }
+  .menu-logo .c4-red  { color: #ff2244; text-shadow: 0 0 30px #ff2244, 0 0 60px #ff224488; }
+  .menu-logo .c4-yellow { color: #ffdd00; text-shadow: 0 0 30px #ffdd00, 0 0 60px #ffdd0088; }
+  .menu-tagline {
+    font-size: 12px;
+    letter-spacing: 5px;
+    color: rgba(255,255,255,0.35);
+    text-transform: uppercase;
+    margin-bottom: 52px;
+  }
+
+  .menu-card {
+    background: rgba(10,10,35,0.75);
+    border: 1px solid rgba(255,255,255,0.09);
+    border-radius: 20px;
+    padding: 36px 44px;
+    display: flex;
+    flex-direction: column;
+    gap: 16px;
+    min-width: min(380px, 88vw);
+    box-shadow: 0 24px 60px rgba(0,0,0,0.6);
+  }
+
+  .menu-btn {
+    pointer-events: all;
+    cursor: pointer;
+    border: none;
+    border-radius: 14px;
+    padding: 20px 28px;
+    display: flex;
+    align-items: center;
+    gap: 18px;
+    text-align: left;
+    transition: transform 0.18s, box-shadow 0.18s, background 0.18s;
+    position: relative;
+    overflow: hidden;
+  }
+  .menu-btn::before {
+    content: '';
+    position: absolute;
+    inset: 0;
+    background: linear-gradient(135deg, rgba(255,255,255,0.06) 0%, transparent 60%);
+    pointer-events: none;
+  }
+  .menu-btn:hover { transform: translateY(-2px) scale(1.02); }
+  .menu-btn:active { transform: scale(0.98); }
+
+  .menu-btn-cpu {
+    background: linear-gradient(135deg, #1a0a2e 0%, #0d1a3a 100%);
+    box-shadow: 0 0 0 1px rgba(100,130,255,0.25), 0 8px 32px rgba(60,80,200,0.25);
+  }
+  .menu-btn-cpu:hover {
+    box-shadow: 0 0 0 1px rgba(100,130,255,0.5), 0 12px 40px rgba(60,80,200,0.45);
+  }
+  .menu-btn-pvp {
+    background: linear-gradient(135deg, #1a0a14 0%, #2a1a04 100%);
+    box-shadow: 0 0 0 1px rgba(255,100,100,0.2), 0 8px 32px rgba(200,60,60,0.2);
+  }
+  .menu-btn-pvp:hover {
+    box-shadow: 0 0 0 1px rgba(255,100,100,0.45), 0 12px 40px rgba(200,60,60,0.35);
+  }
+
+  .menu-btn-icon {
+    font-size: 32px;
+    line-height: 1;
+    flex-shrink: 0;
+    filter: drop-shadow(0 0 8px currentColor);
+  }
+  .menu-btn-cpu .menu-btn-icon { color: #6688ff; }
+  .menu-btn-pvp .menu-btn-icon { color: #ff6644; }
+
+  .menu-btn-text { display: flex; flex-direction: column; gap: 3px; }
+  .menu-btn-title {
+    font-size: 17px;
+    font-weight: 800;
+    letter-spacing: 1px;
+    color: #fff;
+  }
+  .menu-btn-desc {
+    font-size: 12px;
+    color: rgba(255,255,255,0.45);
+    letter-spacing: 0.5px;
+  }
+  .menu-btn-badge {
+    margin-left: auto;
+    font-size: 10px;
+    font-weight: 700;
+    letter-spacing: 1.5px;
+    text-transform: uppercase;
+    padding: 4px 10px;
+    border-radius: 20px;
+    flex-shrink: 0;
+  }
+  .menu-btn-cpu .menu-btn-badge {
+    background: rgba(100,136,255,0.18);
+    color: #8aabff;
+    border: 1px solid rgba(100,136,255,0.3);
+  }
+  .menu-btn-pvp .menu-btn-badge {
+    background: rgba(255,100,68,0.18);
+    color: #ff9980;
+    border: 1px solid rgba(255,100,68,0.3);
+  }
+
+  .menu-footer {
+    margin-top: 28px;
+    font-size: 11px;
+    letter-spacing: 2px;
+    color: rgba(255,255,255,0.18);
+    text-transform: uppercase;
+  }
+</style>
+</head>
+<body>
+<div id="canvas-container"></div>
+
+<!-- ── MAIN MENU ── -->
+<div id="main-menu">
+  <div class="menu-logo">
+    <span class="c4-red">Con</span><span class="c4-yellow">nect</span>
+    <span class="c4-red"> 4</span>
+  </div>
+  <div class="menu-tagline">Neon Arena</div>
+
+  <div class="menu-card">
+    <button class="menu-btn menu-btn-cpu" id="menu-cpu-btn">
+      <span class="menu-btn-icon">🤖</span>
+      <span class="menu-btn-text">
+        <span class="menu-btn-title">Play vs CPU</span>
+        <span class="menu-btn-desc">Challenge the minimax AI opponent</span>
+      </span>
+      <span class="menu-btn-badge">AI</span>
+    </button>
+
+    <button class="menu-btn menu-btn-pvp" id="menu-pvp-btn">
+      <span class="menu-btn-icon">👥</span>
+      <span class="menu-btn-text">
+        <span class="menu-btn-title">Play vs Friend</span>
+        <span class="menu-btn-desc">Two players on the same screen</span>
+      </span>
+      <span class="menu-btn-badge">Local</span>
+    </button>
+  </div>
+
+  <div class="menu-footer">Connect 4 — Neon Arena</div>
+</div>
+
+<div id="hud" style="display:none">
+  <div id="score-bar">
+    <div class="player-score">
+      <span class="player-label" id="p1-label">Player 1</span>
+      <span class="score-num" id="p1-score">0</span>
+    </div>
+    <span class="score-sep">|</span>
+    <div class="player-score">
+      <span class="player-label" id="p2-label">Player 2</span>
+      <span class="score-num" id="p2-score">0</span>
+    </div>
+  </div>
+
+  <div id="mode-bar">
+    <button class="mode-btn active" id="btn-pvp">2 Players</button>
+    <button class="mode-btn" id="btn-cpu">vs CPU</button>
+  </div>
+
+  <div id="cpu-thinking">CPU thinking…</div>
+
+  <div id="turn-bar">
+    <div id="turn-panel">
+      <div id="turn-disc"></div>
+      <span id="turn-text">Player 1's Turn</span>
+    </div>
+    <button id="restart-btn">↺ Restart</button>
+    <button id="back-menu-btn">⬅ Menu</button>
+  </div>
+
+  <div id="win-banner">
+    <div id="win-title">Player 1 Wins!</div>
+    <div id="win-sub">Connect 4 — Neon Arena</div>
+    <button id="win-play-again">Play Again</button>
+    <button id="win-menu-btn" style="margin-top:10px;pointer-events:all;cursor:pointer;background:rgba(255,255,255,0.05);border:1px solid rgba(255,255,255,0.15);color:rgba(255,255,255,0.55);font-size:11px;font-weight:700;letter-spacing:2px;text-transform:uppercase;padding:9px 22px;border-radius:30px;backdrop-filter:blur(10px);transition:all 0.2s;">⬅ Main Menu</button>
+  </div>
+</div>
+
+<script>
+// ═══════════════════════════════════════════════════════
+//  CONSTANTS
+// ═══════════════════════════════════════════════════════
+const COLS = 7, ROWS = 6;
+const CELL = 1.4;           // spacing between cells
+const DISC_R = 0.52;        // disc radius
+const DISC_H = 0.22;        // disc thickness
+const BOARD_W = COLS * CELL;
+const BOARD_H = ROWS * CELL;
+const BOARD_DEPTH = 0.55;
+
+const COL_P1 = 0xff2244;
+const COL_P2 = 0xffdd00;
+const COL_GHOST_P1 = 0xff2244;
+const COL_GHOST_P2 = 0xffdd00;
+
+// ═══════════════════════════════════════════════════════
+//  GAME STATE
+// ═══════════════════════════════════════════════════════
+let board = Array.from({length: ROWS}, () => Array(COLS).fill(0));
+let currentPlayer = 1;
+let scores = [0, 0];
+let gameOver = false;
+let hoveredCol = -1;
+let discMeshes = [];   // {mesh, row, col, player}
+let animating = false;
+let cpuMode = false;   // false = PvP, true = Player vs CPU
+
+// ═══════════════════════════════════════════════════════
+//  MINIMAX AI  (v2 — strong)
+// ═══════════════════════════════════════════════════════
+const AI_DEPTH = 8;
+const WIN_SCORE  = 1000000;
+
+// Column play order: centre-out for better alpha-beta cutoffs
+const COL_ORDER = [3,2,4,1,5,0,6];
+
+function getValidCols(b) {
+  return COL_ORDER.filter(c => b[ROWS-1][c] === 0);
+}
+
+// Returns the row index a disc would land in for column c, or -1 if full
+function landingRow(b, c) {
+  for (let r = 0; r < ROWS; r++) if (b[r][c] === 0) return r;
+  return -1;
+}
+
+function aiDrop(b, col, player) {
+  const nb = b.map(r => r.slice());
+  const r = landingRow(nb, col);
+  nb[r][col] = player;
+  return nb;
+}
+
+function aiCheckWin(b, player) {
+  for (let r = 0; r < ROWS; r++)
+    for (let c = 0; c <= COLS-4; c++)
+      if (b[r][c]===player&&b[r][c+1]===player&&b[r][c+2]===player&&b[r][c+3]===player) return true;
+  for (let c = 0; c < COLS; c++)
+    for (let r = 0; r <= ROWS-4; r++)
+      if (b[r][c]===player&&b[r+1][c]===player&&b[r+2][c]===player&&b[r+3][c]===player) return true;
+  for (let r = 0; r <= ROWS-4; r++)
+    for (let c = 0; c <= COLS-4; c++)
+      if (b[r][c]===player&&b[r+1][c+1]===player&&b[r+2][c+2]===player&&b[r+3][c+3]===player) return true;
+  for (let r = 3; r < ROWS; r++)
+    for (let c = 0; c <= COLS-4; c++)
+      if (b[r][c]===player&&b[r-1][c+1]===player&&b[r-2][c+2]===player&&b[r-3][c+3]===player) return true;
+  return false;
+}
+
+// Score a window of 4 from the perspective of `player`
+function scoreWindow(w, player) {
+  const opp = player === 2 ? 1 : 2;
+  let p = 0, o = 0;
+  for (const x of w) { if (x===player) p++; else if (x===opp) o++; }
+  if (p === 4)              return 10000;   // win
+  if (p === 3 && o === 0)   return 50;      // open three — strong attacking threat
+  if (p === 2 && o === 0)   return 10;      // open two
+  if (o === 4)              return -10000;  // opponent wins
+  if (o === 3 && p === 0)   return -80;     // must block — weighted heavier than attack
+  if (o === 2 && p === 0)   return -10;
+  return 0;
+}
+
+function scoreBoard(b) {
+  let score = 0;
+  // Centre column control
+  for (let r = 0; r < ROWS; r++) {
+    if (b[r][3] === 2) score += 4;
+    else if (b[r][3] === 1) score -= 4;
+  }
+  // Adjacent-centre columns
+  for (let r = 0; r < ROWS; r++) {
+    for (const c of [2,4]) {
+      if (b[r][c] === 2) score += 2;
+      else if (b[r][c] === 1) score -= 2;
+    }
+  }
+  // All windows
+  const windows = [];
+  for (let r = 0; r < ROWS; r++)
+    for (let c = 0; c <= COLS-4; c++)
+      windows.push([b[r][c],b[r][c+1],b[r][c+2],b[r][c+3]]);
+  for (let c = 0; c < COLS; c++)
+    for (let r = 0; r <= ROWS-4; r++)
+      windows.push([b[r][c],b[r+1][c],b[r+2][c],b[r+3][c]]);
+  for (let r = 0; r <= ROWS-4; r++)
+    for (let c = 0; c <= COLS-4; c++)
+      windows.push([b[r][c],b[r+1][c+1],b[r+2][c+2],b[r+3][c+3]]);
+  for (let r = 3; r < ROWS; r++)
+    for (let c = 0; c <= COLS-4; c++)
+      windows.push([b[r][c],b[r-1][c+1],b[r-2][c+2],b[r-3][c+3]]);
+  for (const w of windows) score += scoreWindow(w, 2);
+  return score;
+}
+
+function isTerminal(b) {
+  return aiCheckWin(b,1) || aiCheckWin(b,2) || getValidCols(b).length === 0;
+}
+
+function minimax(b, depth, alpha, beta, maximizing) {
+  if (aiCheckWin(b, 2)) return { score:  WIN_SCORE + depth };   // sooner wins score higher
+  if (aiCheckWin(b, 1)) return { score: -WIN_SCORE - depth };
+  const valid = getValidCols(b);
+  if (valid.length === 0) return { score: 0 };
+  if (depth === 0) return { score: scoreBoard(b) };
+
+  let bestCol = valid[0];
+  if (maximizing) {
+    let best = -Infinity;
+    for (const col of valid) {
+      const val = minimax(aiDrop(b, col, 2), depth-1, alpha, beta, false).score;
+      if (val > best) { best = val; bestCol = col; }
+      alpha = Math.max(alpha, best);
+      if (alpha >= beta) break;
+    }
+    return { score: best, col: bestCol };
+  } else {
+    let best = Infinity;
+    for (const col of valid) {
+      const val = minimax(aiDrop(b, col, 1), depth-1, alpha, beta, true).score;
+      if (val < best) { best = val; bestCol = col; }
+      beta = Math.min(beta, best);
+      if (alpha >= beta) break;
+    }
+    return { score: best, col: bestCol };
+  }
+}
+
+function getBestMove() {
+  const valid = getValidCols(board);
+
+  // Immediate win: play it now
+  for (const c of valid) {
+    if (aiCheckWin(aiDrop(board, c, 2), 2)) return c;
+  }
+  // Immediate block: opponent wins next turn
+  for (const c of valid) {
+    if (aiCheckWin(aiDrop(board, c, 1), 1)) return c;
+  }
+
+  return minimax(board, AI_DEPTH, -Infinity, Infinity, true).col;
+}
+
+// ═══════════════════════════════════════════════════════
+//  THREE.JS SETUP
+// ═══════════════════════════════════════════════════════
+const renderer = new THREE.WebGLRenderer({ antialias: true });
+renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+renderer.setSize(window.innerWidth, window.innerHeight);
+renderer.shadowMap.enabled = true;
+renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+renderer.setClearColor(0x02020f, 1);
+document.getElementById('canvas-container').appendChild(renderer.domElement);
+
+const scene = new THREE.Scene();
+scene.fog = new THREE.FogExp2(0x02020f, 0.045);
+
+const camera = new THREE.PerspectiveCamera(55, window.innerWidth / window.innerHeight, 0.1, 100);
+camera.position.set(0, 5.5, 11);
+camera.lookAt(0, 0.5, 0);
+
+// ── Lights ──
+const ambient = new THREE.AmbientLight(0x1a1a3a, 1.2);
+scene.add(ambient);
+
+const ptLight1 = new THREE.PointLight(0x4466ff, 2.5, 25);
+ptLight1.position.set(-5, 8, 6);
+scene.add(ptLight1);
+
+const ptLight2 = new THREE.PointLight(0xff3366, 2, 20);
+ptLight2.position.set(5, 6, 4);
+scene.add(ptLight2);
+
+const ptLight3 = new THREE.PointLight(0xffaa00, 1.5, 18);
+ptLight3.position.set(0, -3, 8);
+scene.add(ptLight3);
+
+const topLight = new THREE.DirectionalLight(0xffffff, 0.4);
+topLight.position.set(0, 10, 5);
+scene.add(topLight);
+
+// ── Board group (will sway) ──
+const boardGroup = new THREE.Group();
+scene.add(boardGroup);
+
+// ── Background stars ──
+(function buildStars() {
+  const count = 600;
+  const geo = new THREE.BufferGeometry();
+  const pos = new Float32Array(count * 3);
+  for (let i = 0; i < count; i++) {
+    pos[i*3]   = (Math.random()-0.5)*80;
+    pos[i*3+1] = (Math.random()-0.5)*50;
+    pos[i*3+2] = -20 - Math.random()*30;
+  }
+  geo.setAttribute('position', new THREE.BufferAttribute(pos, 3));
+  const mat = new THREE.PointsMaterial({color:0xffffff, size:0.07, transparent:true, opacity:0.6});
+  scene.add(new THREE.Points(geo, mat));
+})();
+
+// ═══════════════════════════════════════════════════════
+//  BUILD 3D BOARD
+// ═══════════════════════════════════════════════════════
+function buildBoard() {
+  // Dark backing panel
+  const panelGeo = new THREE.BoxGeometry(BOARD_W + 0.5, BOARD_H + 0.5, BOARD_DEPTH);
+  const panelMat = new THREE.MeshStandardMaterial({
+    color: 0x060618,
+    metalness: 0.7,
+    roughness: 0.3,
+    transparent: true,
+    opacity: 0.92,
+  });
+  const panel = new THREE.Mesh(panelGeo, panelMat);
+  panel.castShadow = true;
+  panel.receiveShadow = true;
+  boardGroup.add(panel);
+
+  // Metallic frame bars
+  const frameMat = new THREE.MeshStandardMaterial({
+    color: 0x1a1a4a,
+    metalness: 0.9,
+    roughness: 0.2,
+    emissive: 0x0a0a25,
+  });
+  const barR = 0.08;
+  // Horizontal bars
+  for (let r = 0; r <= ROWS; r++) {
+    const y = -BOARD_H/2 + r*CELL;
+    const geo = new THREE.CylinderGeometry(barR, barR, BOARD_W+0.5, 8);
+    const bar = new THREE.Mesh(geo, frameMat);
+    bar.rotation.z = Math.PI/2;
+    bar.position.set(0, y, BOARD_DEPTH/2+0.01);
+    boardGroup.add(bar);
+  }
+  // Vertical bars
+  for (let c = 0; c <= COLS; c++) {
+    const x = -BOARD_W/2 + c*CELL;
+    const geo = new THREE.CylinderGeometry(barR, barR, BOARD_H+0.5, 8);
+    const bar = new THREE.Mesh(geo, frameMat);
+    bar.position.set(x, 0, BOARD_DEPTH/2+0.01);
+    boardGroup.add(bar);
+  }
+
+  // Hole rings (torus) for each cell
+  const torusMat = new THREE.MeshStandardMaterial({
+    color: 0x0d0d30,
+    metalness: 0.85,
+    roughness: 0.15,
+    emissive: 0x080820,
+  });
+  for (let r = 0; r < ROWS; r++) {
+    for (let c = 0; c < COLS; c++) {
+      const {x,y} = cellPos(r,c);
+      // Punched-out dark circle on front face
+      const holeDisk = new THREE.Mesh(
+        new THREE.CircleGeometry(DISC_R+0.02, 32),
+        new THREE.MeshStandardMaterial({color:0x010108, roughness:0.3, metalness:0.2})
+      );
+      holeDisk.position.set(x, y, BOARD_DEPTH/2+0.02);
+      boardGroup.add(holeDisk);
+
+      // Torus ring
+      const torus = new THREE.Mesh(
+        new THREE.TorusGeometry(DISC_R+0.02, 0.055, 12, 40),
+        torusMat
+      );
+      torus.position.set(x, y, BOARD_DEPTH/2+0.03);
+      boardGroup.add(torus);
+
+      // Inner glow ring (emissive)
+      const glowRingMat = new THREE.MeshStandardMaterial({
+        color: 0x101040,
+        emissive: 0x151550,
+        emissiveIntensity: 0.5,
+        transparent: true,
+        opacity: 0.5,
+      });
+      const glowRing = new THREE.Mesh(
+        new THREE.TorusGeometry(DISC_R-0.05, 0.025, 8, 40),
+        glowRingMat
+      );
+      glowRing.position.set(x, y, BOARD_DEPTH/2+0.035);
+      boardGroup.add(glowRing);
+    }
+  }
+
+  // Edge glow strips
+  const glowEdgeMat = new THREE.MeshStandardMaterial({
+    color: 0x2233ff,
+    emissive: 0x2233ff,
+    emissiveIntensity: 0.8,
+    transparent: true,
+    opacity: 0.6,
+  });
+  const edgeR = 0.05;
+  // top/bottom
+  [-1,1].forEach(sign => {
+    const geo = new THREE.CylinderGeometry(edgeR, edgeR, BOARD_W+0.6, 8);
+    const m = new THREE.Mesh(geo, glowEdgeMat);
+    m.rotation.z = Math.PI/2;
+    m.position.set(0, sign*(BOARD_H/2+0.25), 0);
+    boardGroup.add(m);
+  });
+  // left/right
+  [-1,1].forEach(sign => {
+    const geo = new THREE.CylinderGeometry(edgeR, edgeR, BOARD_H+0.6, 8);
+    const m = new THREE.Mesh(geo, glowEdgeMat);
+    m.position.set(sign*(BOARD_W/2+0.25), 0, 0);
+    boardGroup.add(m);
+  });
+}
+
+function cellPos(row, col) {
+  const x = -BOARD_W/2 + CELL/2 + col*CELL;
+  const y = -BOARD_H/2 + CELL/2 + row*CELL;
+  return {x, y};
+}
+
+// ═══════════════════════════════════════════════════════
+//  GHOST DISC
+// ═══════════════════════════════════════════════════════
+const ghostMat = new THREE.MeshStandardMaterial({
+  color: COL_GHOST_P1,
+  emissive: COL_GHOST_P1,
+  emissiveIntensity: 0.6,
+  transparent: true,
+  opacity: 0.45,
+});
+const ghostMesh = new THREE.Mesh(
+  new THREE.CylinderGeometry(DISC_R, DISC_R, DISC_H, 36),
+  ghostMat
+);
+ghostMesh.rotation.x = Math.PI/2;
+ghostMesh.visible = false;
+scene.add(ghostMesh);
+
+// ═══════════════════════════════════════════════════════
+//  RAYCASTING PLANES (one per column)
+// ═══════════════════════════════════════════════════════
+const colPlanes = [];
+for (let c = 0; c < COLS; c++) {
+  const x = -BOARD_W/2 + CELL/2 + c*CELL;
+  const planeGeo = new THREE.PlaneGeometry(CELL, BOARD_H + 3);
+  const planeMat = new THREE.MeshBasicMaterial({visible: false, side: THREE.DoubleSide});
+  const plane = new THREE.Mesh(planeGeo, planeMat);
+  plane.position.set(x, 0, BOARD_DEPTH/2 + 0.1);
+  plane.userData.col = c;
+  scene.add(plane);
+  colPlanes.push(plane);
+}
+
+// ═══════════════════════════════════════════════════════
+//  DISC CREATION
+// ═══════════════════════════════════════════════════════
+function makeDiscMesh(player) {
+  const col = player === 1 ? COL_P1 : COL_P2;
+  const mat = new THREE.MeshStandardMaterial({
+    color: col,
+    emissive: col,
+    emissiveIntensity: 0.55,
+    metalness: 0.3,
+    roughness: 0.25,
+  });
+  const geo = new THREE.CylinderGeometry(DISC_R, DISC_R, DISC_H, 48);
+  const mesh = new THREE.Mesh(geo, mat);
+  mesh.rotation.x = Math.PI/2;
+  mesh.castShadow = true;
+  return mesh;
+}
+
+function dropDisc(col) {
+  if (gameOver || animating) return;
+
+  // Find lowest empty row
+  let targetRow = -1;
+  for (let r = 0; r < ROWS; r++) {
+    if (board[r][col] === 0) { targetRow = r; break; }
+  }
+  if (targetRow === -1) return; // column full
+
+  animating = true;
+  board[targetRow][col] = currentPlayer;
+
+  const mesh = makeDiscMesh(currentPlayer);
+  const {x, y} = cellPos(targetRow, col);
+
+  // Start position: above the board
+  mesh.position.set(x, BOARD_H/2 + 2.5, BOARD_DEPTH/2 + 0.01);
+  boardGroup.add(mesh);
+
+  playDropSound(currentPlayer);
+
+  // GSAP drop animation
+  gsap.to(mesh.position, {
+    y: y,
+    duration: 0.55,
+    ease: 'bounce.out',
+    onComplete: () => {
+      discMeshes.push({mesh, row: targetRow, col, player: currentPlayer});
+      animating = false;
+
+      const winner = checkWin(targetRow, col, currentPlayer);
+      if (winner) {
+        handleWin(winner.player, winner.cells);
+      } else if (checkDraw()) {
+        handleDraw();
+      } else {
+        currentPlayer = currentPlayer === 1 ? 2 : 1;
+        updateTurnUI();
+        if (cpuMode && currentPlayer === 2) scheduleCpuMove();
+      }
+    }
+  });
+}
+
+// ═══════════════════════════════════════════════════════
+//  WIN / DRAW
+// ═══════════════════════════════════════════════════════
+function checkWin(row, col, player) {
+  const dirs = [[0,1],[1,0],[1,1],[1,-1]];
+  for (const [dr,dc] of dirs) {
+    let cells = [{row,col}];
+    for (let d=1;d<4;d++) {
+      const r=row+dr*d, c=col+dc*d;
+      if (r>=0&&r<ROWS&&c>=0&&c<COLS&&board[r][c]===player) cells.push({row:r,col:c});
+      else break;
+    }
+    for (let d=1;d<4;d++) {
+      const r=row-dr*d, c=col-dc*d;
+      if (r>=0&&r<ROWS&&c>=0&&c<COLS&&board[r][c]===player) cells.push({row:r,col:c});
+      else break;
+    }
+    if (cells.length >= 4) return {player, cells: cells.slice(0,4)};
+  }
+  return null;
+}
+
+function checkDraw() {
+  return board.every(row => row.every(c => c !== 0));
+}
+
+function handleWin(player, cells) {
+  gameOver = true;
+  scores[player-1]++;
+  document.getElementById(`p${player}-score`).textContent = scores[player-1];
+
+  // Pulse winning discs
+  cells.forEach(({row,col}) => {
+    const found = discMeshes.find(d => d.row===row && d.col===col);
+    if (found) {
+      pulseWinDisc(found.mesh, player);
+    }
+  });
+
+  // Particle burst at board center
+  spawnParticles(0, 0, player);
+
+  playWinSound(player);
+
+  // Show banner
+  const banner = document.getElementById('win-banner');
+  const title = document.getElementById('win-title');
+  const winName = cpuMode && player===2 ? 'CPU' : `Player ${player}`;
+  title.textContent = `${winName} Wins!`;
+  title.style.color = player===1 ? '#ff2244' : '#ffdd00';
+  banner.classList.add('show');
+
+  ghostMesh.visible = false;
+}
+
+function handleDraw() {
+  gameOver = true;
+  playDrawSound();
+  const banner = document.getElementById('win-banner');
+  const title = document.getElementById('win-title');
+  title.textContent = 'Draw!';
+  title.style.color = '#aaaaff';
+  banner.classList.add('show');
+  ghostMesh.visible = false;
+}
+
+function pulseWinDisc(mesh, player) {
+  const col = player===1 ? COL_P1 : COL_P2;
+  mesh.material.emissiveIntensity = 2.0;
+  gsap.to(mesh.scale, {
+    x: 1.18, y: 1.18, z: 1.18,
+    duration: 0.4,
+    ease: 'power2.inOut',
+    yoyo: true,
+    repeat: -1,
+  });
+  gsap.to(mesh.material, {
+    emissiveIntensity: 3.5,
+    duration: 0.4,
+    yoyo: true,
+    repeat: -1,
+    ease: 'power2.inOut',
+  });
+}
+
+// ═══════════════════════════════════════════════════════
+//  PARTICLES
+// ═══════════════════════════════════════════════════════
+function spawnParticles(x, y, player) {
+  const count = 200;
+  const geo = new THREE.BufferGeometry();
+  const positions = new Float32Array(count*3);
+  const velocities = [];
+  for (let i=0;i<count;i++) {
+    positions[i*3]=x; positions[i*3+1]=y; positions[i*3+2]=2;
+    const angle = Math.random()*Math.PI*2;
+    const speed = 0.04 + Math.random()*0.12;
+    velocities.push({
+      vx: Math.cos(angle)*speed,
+      vy: Math.sin(angle)*speed + 0.05,
+      vz: (Math.random()-0.5)*0.04,
+    });
+  }
+  geo.setAttribute('position', new THREE.BufferAttribute(positions, 3));
+  const mat = new THREE.PointsMaterial({
+    color: player===1 ? COL_P1 : COL_P2,
+    size: 0.12,
+    transparent: true,
+    opacity: 1,
+  });
+  const pts = new THREE.Points(geo, mat);
+  scene.add(pts);
+
+  let life = 0;
+  const tick = () => {
+    life++;
+    const pos = geo.attributes.position.array;
+    for (let i=0;i<count;i++) {
+      const v = velocities[i];
+      pos[i*3]   += v.vx;
+      pos[i*3+1] += v.vy;
+      pos[i*3+2] += v.vz;
+      v.vy -= 0.003; // gravity
+    }
+    geo.attributes.position.needsUpdate = true;
+    mat.opacity = Math.max(0, 1 - life/80);
+    if (life < 80) requestAnimationFrame(tick);
+    else scene.remove(pts);
+  };
+  tick();
+}
+
+// ═══════════════════════════════════════════════════════
+//  RESTART
+// ═══════════════════════════════════════════════════════
+function restartGame() {
+  board = Array.from({length:ROWS}, () => Array(COLS).fill(0));
+  currentPlayer = 1;
+  gameOver = false;
+  animating = false;
+  hoveredCol = -1;
+
+  discMeshes.forEach(d => {
+    gsap.killTweensOf(d.mesh.scale);
+    gsap.killTweensOf(d.mesh.material);
+    boardGroup.remove(d.mesh);
+  });
+  discMeshes = [];
+
+  document.getElementById('win-banner').classList.remove('show');
+  updateTurnUI();
+  ghostMesh.visible = false;
+}
+
+document.getElementById('restart-btn').addEventListener('click', restartGame);
+document.getElementById('win-play-again').addEventListener('click', restartGame);
+
+// Mode buttons (in-game toggle)
+document.getElementById('btn-pvp').addEventListener('click', () => {
+  if (!cpuMode) return;
+  cpuMode = false;
+  document.getElementById('btn-pvp').classList.add('active');
+  document.getElementById('btn-cpu').classList.remove('active');
+  document.getElementById('p2-label').textContent = 'Player 2';
+  restartGame();
+});
+document.getElementById('btn-cpu').addEventListener('click', () => {
+  if (cpuMode) return;
+  cpuMode = true;
+  document.getElementById('btn-cpu').classList.add('active');
+  document.getElementById('btn-pvp').classList.remove('active');
+  document.getElementById('p2-label').textContent = 'CPU';
+  restartGame();
+});
+
+// ── Main menu ──
+function showMenu() {
+  const menu = document.getElementById('main-menu');
+  menu.classList.remove('hidden');
+  menu.style.display = 'flex';
+  document.getElementById('hud').style.display = 'none';
+  // Reset scores when returning to menu
+  scores = [0, 0];
+  document.getElementById('p1-score').textContent = '0';
+  document.getElementById('p2-score').textContent = '0';
+}
+
+function startGame(cpu) {
+  cpuMode = cpu;
+
+  // Sync in-game mode buttons
+  document.getElementById('btn-pvp').classList.toggle('active', !cpu);
+  document.getElementById('btn-cpu').classList.toggle('active',  cpu);
+  document.getElementById('p2-label').textContent = cpu ? 'CPU' : 'Player 2';
+
+  // Hide menu with animation then show HUD
+  const menu = document.getElementById('main-menu');
+  menu.classList.add('hidden');
+  setTimeout(() => {
+    menu.style.display = 'none';
+    document.getElementById('hud').style.display = 'block';
+  }, 450);
+
+  restartGame();
+  startBGMusic();
+}
+
+document.getElementById('menu-cpu-btn').addEventListener('click', () => startGame(true));
+document.getElementById('menu-pvp-btn').addEventListener('click', () => startGame(false));
+
+document.getElementById('back-menu-btn').addEventListener('click', () => {
+  restartGame();
+  showMenu();
+});
+document.getElementById('win-menu-btn').addEventListener('click', () => {
+  restartGame();
+  showMenu();
+});
+
+// ═══════════════════════════════════════════════════════
+//  CPU MOVE
+// ═══════════════════════════════════════════════════════
+function scheduleCpuMove() {
+  document.getElementById('cpu-thinking').classList.add('visible');
+  ghostMesh.visible = false;
+  // Small delay so the disc drop animation finishes visually
+  setTimeout(() => {
+    if (gameOver) { document.getElementById('cpu-thinking').classList.remove('visible'); return; }
+    const col = getBestMove();
+    document.getElementById('cpu-thinking').classList.remove('visible');
+    dropDisc(col);
+  }, 420);
+}
+
+// ═══════════════════════════════════════════════════════
+//  TURN UI
+// ═══════════════════════════════════════════════════════
+function updateTurnUI() {
+  const disc = document.getElementById('turn-disc');
+  const txt = document.getElementById('turn-text');
+  const col = currentPlayer===1 ? '#ff2244' : '#ffdd00';
+  disc.style.background = col;
+  disc.style.boxShadow = `0 0 14px ${col}`;
+  const name = cpuMode && currentPlayer===2 ? 'CPU' : `Player ${currentPlayer}`;
+  txt.textContent = `${name}'s Turn`;
+
+  // Update ghost color
+  ghostMat.color.setHex(currentPlayer===1 ? COL_GHOST_P1 : COL_GHOST_P2);
+  ghostMat.emissive.setHex(currentPlayer===1 ? COL_GHOST_P1 : COL_GHOST_P2);
+}
+
+// ═══════════════════════════════════════════════════════
+//  MOUSE INTERACTION
+// ═══════════════════════════════════════════════════════
+const raycaster = new THREE.Raycaster();
+const mouse = new THREE.Vector2();
+
+renderer.domElement.addEventListener('mousemove', e => {
+  mouse.x = (e.clientX / window.innerWidth)*2 - 1;
+  mouse.y = -(e.clientY / window.innerHeight)*2 + 1;
+
+  if (gameOver || animating || (cpuMode && currentPlayer===2)) { ghostMesh.visible=false; return; }
+
+  raycaster.setFromCamera(mouse, camera);
+  const hits = raycaster.intersectObjects(colPlanes);
+  if (hits.length > 0) {
+    const col = hits[0].object.userData.col;
+    hoveredCol = col;
+
+    // Find topmost empty row for ghost
+    let topRow = -1;
+    for (let r=ROWS-1; r>=0; r--) {
+      if (board[r][col]===0) { topRow=r; break; }
+    }
+    // Recalculate: find lowest empty
+    let ghostRow = -1;
+    for (let r=0;r<ROWS;r++) {
+      if (board[r][col]===0) { ghostRow=r; break; }
+    }
+
+    if (ghostRow === -1) {
+      ghostMesh.visible = false;
+    } else {
+      const {x} = cellPos(0, col);
+      const topY = BOARD_H/2 + 1.1;
+      ghostMesh.position.set(x, topY, BOARD_DEPTH/2 + 0.05);
+      ghostMesh.visible = true;
+    }
+  } else {
+    hoveredCol = -1;
+    ghostMesh.visible = false;
+  }
+});
+
+renderer.domElement.addEventListener('click', e => {
+  if (gameOver || animating || (cpuMode && currentPlayer===2)) return;
+  raycaster.setFromCamera(mouse, camera);
+  const hits = raycaster.intersectObjects(colPlanes);
+  if (hits.length > 0) {
+    dropDisc(hits[0].object.userData.col);
+  }
+});
+
+renderer.domElement.addEventListener('mouseleave', () => {
+  ghostMesh.visible = false;
+  hoveredCol = -1;
+});
+
+// ═══════════════════════════════════════════════════════
+//  WEB AUDIO
+// ═══════════════════════════════════════════════════════
+let audioCtx = null;
+function getAudio() {
+  if (!audioCtx) audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+  return audioCtx;
+}
+
+function playTone(freq, type, startTime, duration, gainVal, ctx, dest) {
+  const osc = ctx.createOscillator();
+  const gain = ctx.createGain();
+  osc.connect(gain); gain.connect(dest);
+  osc.type = type;
+  osc.frequency.setValueAtTime(freq, startTime);
+  gain.gain.setValueAtTime(gainVal, startTime);
+  gain.gain.exponentialRampToValueAtTime(0.0001, startTime + duration);
+  osc.start(startTime);
+  osc.stop(startTime + duration);
+}
+
+function playDropSound(player) {
+  const ctx = getAudio();
+  const master = ctx.createGain();
+  master.gain.value = 0.25;
+  master.connect(ctx.destination);
+  const t = ctx.currentTime;
+  const freq = player===1 ? 320 : 440;
+  const osc = ctx.createOscillator();
+  const gain = ctx.createGain();
+  osc.connect(gain); gain.connect(master);
+  osc.type = 'sine';
+  osc.frequency.setValueAtTime(freq*1.8, t);
+  osc.frequency.exponentialRampToValueAtTime(freq, t+0.18);
+  gain.gain.setValueAtTime(0.4, t);
+  gain.gain.exponentialRampToValueAtTime(0.0001, t+0.22);
+  osc.start(t); osc.stop(t+0.25);
+}
+
+function playWinSound(player) {
+  const ctx = getAudio();
+  const master = ctx.createGain();
+  master.gain.value = 0.3;
+  master.connect(ctx.destination);
+  const t = ctx.currentTime;
+  const base = player===1 ? 330 : 440;
+  const notes = [base, base*1.25, base*1.5, base*2, base*2.5];
+  notes.forEach((freq, i) => {
+    playTone(freq, 'sine', t + i*0.12, 0.35, 0.4, ctx, master);
+    playTone(freq*2, 'triangle', t + i*0.12, 0.2, 0.15, ctx, master);
+  });
+}
+
+function playDrawSound() {
+  const ctx = getAudio();
+  const master = ctx.createGain();
+  master.gain.value = 0.25;
+  master.connect(ctx.destination);
+  const t = ctx.currentTime;
+  const notes = [440, 370, 311, 261];
+  notes.forEach((freq, i) => {
+    playTone(freq, 'triangle', t + i*0.13, 0.3, 0.35, ctx, master);
+  });
+}
+
+// ── Background music ──
+let musicStarted = false;
+function startBGMusic() {
+  if (musicStarted) return;
+  musicStarted = true;
+  const ctx = getAudio();
+  const master = ctx.createGain();
+  master.gain.value = 0.055;
+  master.connect(ctx.destination);
+
+  // Simple pentatonic melody loop
+  const melody = [261.6, 293.7, 329.6, 392.0, 440.0, 392.0, 329.6, 293.7];
+  const bass   = [130.8, 130.8, 164.8, 196.0];
+  const bpm = 112, beat = 60/bpm;
+
+  function scheduleMelody(startT) {
+    melody.forEach((freq, i) => {
+      playTone(freq, 'square', startT + i*beat*0.5, beat*0.45, 0.18, ctx, master);
+    });
+  }
+  function scheduleBass(startT) {
+    bass.forEach((freq, i) => {
+      playTone(freq, 'sawtooth', startT + i*beat, beat*0.8, 0.3, ctx, master);
+    });
+  }
+
+  const loopDur = beat * melody.length * 0.5;
+  let t = ctx.currentTime + 0.1;
+  function loop() {
+    scheduleMelody(t);
+    scheduleBass(t);
+    t += loopDur;
+    setTimeout(loop, (loopDur - 0.3)*1000);
+  }
+  loop();
+}
+
+// Start music on first interaction
+['click','touchstart'].forEach(ev => {
+  document.addEventListener(ev, startBGMusic, {once:true});
+});
+
+// ═══════════════════════════════════════════════════════
+//  RESIZE
+// ═══════════════════════════════════════════════════════
+window.addEventListener('resize', () => {
+  camera.aspect = window.innerWidth / window.innerHeight;
+  camera.updateProjectionMatrix();
+  renderer.setSize(window.innerWidth, window.innerHeight);
+});
+
+// ═══════════════════════════════════════════════════════
+//  RENDER LOOP
+// ═══════════════════════════════════════════════════════
+let clock = 0;
+function animate() {
+  requestAnimationFrame(animate);
+  clock += 0.008;
+
+  // Gentle board sway
+  boardGroup.rotation.y = Math.sin(clock*0.7) * 0.018;
+  boardGroup.rotation.x = Math.sin(clock*0.5) * 0.010 - 0.05;
+
+  // Ghost disc float
+  if (ghostMesh.visible) {
+    ghostMesh.position.y = BOARD_H/2 + 1.1 + Math.sin(clock*3)*0.08;
+    ghostMat.opacity = 0.35 + Math.sin(clock*4)*0.12;
+  }
+
+  // Rotate point lights slowly
+  ptLight1.position.x = Math.sin(clock*0.4)*6;
+  ptLight1.position.z = Math.cos(clock*0.4)*6 + 3;
+  ptLight2.position.x = Math.cos(clock*0.35)*5;
+  ptLight2.position.z = Math.sin(clock*0.35)*5 + 2;
+
+  renderer.render(scene, camera);
+}
+
+// ═══════════════════════════════════════════════════════
+//  INIT
+// ═══════════════════════════════════════════════════════
+buildBoard();
+updateTurnUI();
+animate();
+</script>
+</body>
+</html>
