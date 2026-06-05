@@ -1,0 +1,1008 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Chinese Checkers</title>
+<script src="https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/three@0.160.0/examples/js/controls/OrbitControls.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/gsap@3.12.4/dist/gsap.min.js"></script>
+<style>
+* { margin:0; padding:0; box-sizing:border-box; }
+body { background:#050a1a; font-family:'Segoe UI',Arial,sans-serif; overflow:hidden; }
+#canvas-container { position:fixed; inset:0; }
+canvas { display:block; }
+
+/* HUD */
+#hud { position:fixed; inset:0; pointer-events:none; z-index:10; }
+#top-bar {
+  position:absolute; top:0; left:0; right:0;
+  display:flex; align-items:center; justify-content:space-between;
+  padding:12px 20px;
+  background:linear-gradient(180deg,rgba(5,10,26,0.95) 0%,rgba(5,10,26,0) 100%);
+  pointer-events:auto;
+}
+#back-btn {
+  color:rgba(200,220,255,0.7); text-decoration:none;
+  font-size:13px; letter-spacing:1px; text-transform:uppercase;
+  border:1px solid rgba(200,220,255,0.2); padding:6px 14px; border-radius:20px;
+  transition:all 0.2s; backdrop-filter:blur(4px);
+}
+#back-btn:hover { color:#fff; border-color:rgba(200,220,255,0.6); }
+#turn-indicator {
+  display:flex; align-items:center; gap:10px;
+  background:rgba(255,255,255,0.06); backdrop-filter:blur(10px);
+  border:1px solid rgba(255,255,255,0.12); border-radius:30px;
+  padding:8px 18px;
+}
+#turn-marble { width:20px; height:20px; border-radius:50%; }
+#turn-name { color:#fff; font-size:14px; font-weight:600; letter-spacing:0.5px; }
+#turn-label { color:rgba(255,255,255,0.4); font-size:12px; }
+
+#move-log {
+  position:absolute; bottom:20px; left:20px;
+  background:rgba(5,10,26,0.85); backdrop-filter:blur(10px);
+  border:1px solid rgba(255,255,255,0.08); border-radius:12px;
+  padding:10px 14px; min-width:200px;
+}
+#move-log-title { color:rgba(255,255,255,0.3); font-size:10px; letter-spacing:2px; text-transform:uppercase; margin-bottom:6px; }
+.log-entry { color:rgba(255,255,255,0.65); font-size:12px; line-height:1.8; }
+
+#action-panel {
+  position:absolute; bottom:20px; right:20px;
+  display:flex; flex-direction:column; gap:8px;
+  pointer-events:auto;
+}
+.action-btn {
+  background:rgba(255,255,255,0.08); backdrop-filter:blur(10px);
+  border:1px solid rgba(255,255,255,0.15); color:#fff;
+  padding:10px 20px; border-radius:25px; cursor:pointer;
+  font-size:13px; letter-spacing:0.5px; transition:all 0.2s;
+  display:none;
+}
+.action-btn:hover { background:rgba(255,255,255,0.18); border-color:rgba(255,255,255,0.4); }
+.action-btn.visible { display:block; }
+#end-turn-btn { border-color:rgba(100,200,100,0.4); color:#88ff88; }
+#end-turn-btn:hover { background:rgba(100,200,100,0.15); }
+
+/* Start Screen */
+#start-screen {
+  position:fixed; inset:0; z-index:100;
+  display:flex; align-items:center; justify-content:center;
+  background:radial-gradient(ellipse at center,#0a1628 0%,#050a14 100%);
+}
+#start-panel {
+  background:rgba(255,255,255,0.04); backdrop-filter:blur(20px);
+  border:1px solid rgba(255,255,255,0.1); border-radius:24px;
+  padding:48px; max-width:480px; width:90%; text-align:center;
+}
+#start-panel h1 {
+  font-size:36px; font-weight:800; letter-spacing:2px;
+  background:linear-gradient(135deg,#ffd700,#ff8800,#ff3333,#ff44cc,#4488ff,#00cccc);
+  -webkit-background-clip:text; -webkit-text-fill-color:transparent; background-clip:text;
+  margin-bottom:6px;
+}
+.subtitle { color:rgba(255,255,255,0.35); font-size:12px; letter-spacing:4px; text-transform:uppercase; margin-bottom:36px; }
+.player-count-row { display:flex; gap:10px; justify-content:center; margin-bottom:28px; }
+.count-btn {
+  width:64px; height:64px; border-radius:16px; border:2px solid rgba(255,255,255,0.15);
+  background:rgba(255,255,255,0.05); color:#fff; font-size:22px; font-weight:700;
+  cursor:pointer; transition:all 0.2s;
+}
+.count-btn:hover { border-color:rgba(255,255,255,0.4); background:rgba(255,255,255,0.1); }
+.count-btn.selected { border-color:#ffd700; background:rgba(255,215,0,0.15); color:#ffd700; box-shadow:0 0 20px rgba(255,215,0,0.2); }
+#player-names { margin-bottom:28px; }
+.name-row { display:flex; align-items:center; gap:10px; margin-bottom:10px; }
+.name-dot { width:12px; height:12px; border-radius:50%; flex-shrink:0; }
+.name-input {
+  flex:1; background:rgba(255,255,255,0.06); border:1px solid rgba(255,255,255,0.12);
+  color:#fff; padding:8px 14px; border-radius:10px; font-size:14px; outline:none;
+}
+.name-input:focus { border-color:rgba(255,255,255,0.3); }
+#start-btn {
+  width:100%; padding:14px;
+  background:linear-gradient(135deg,#ffd700,#ff8800);
+  border:none; color:#000; font-size:16px; font-weight:700; letter-spacing:1px;
+  border-radius:14px; cursor:pointer; transition:all 0.2s; text-transform:uppercase;
+}
+#start-btn:hover { transform:translateY(-2px); box-shadow:0 8px 30px rgba(255,200,0,0.4); }
+.section-label { color:rgba(255,255,255,0.4); font-size:11px; letter-spacing:3px; text-transform:uppercase; margin-bottom:14px; }
+
+/* Win Screen */
+#win-screen {
+  position:fixed; inset:0; z-index:200;
+  display:none; align-items:center; justify-content:center;
+  background:rgba(0,0,0,0.7); backdrop-filter:blur(8px);
+}
+#win-screen.show { display:flex; }
+#win-panel {
+  background:rgba(10,20,40,0.95); border:1px solid rgba(255,255,255,0.15);
+  border-radius:24px; padding:52px 60px; text-align:center; min-width:320px;
+}
+#win-title { font-size:14px; color:rgba(255,255,255,0.4); letter-spacing:4px; text-transform:uppercase; margin-bottom:16px; }
+#win-name { font-size:48px; font-weight:800; margin-bottom:8px; }
+#win-subtitle { color:rgba(255,255,255,0.5); font-size:16px; margin-bottom:36px; }
+#play-again-btn {
+  padding:12px 32px; background:rgba(255,255,255,0.1); border:1px solid rgba(255,255,255,0.25);
+  color:#fff; font-size:14px; border-radius:25px; cursor:pointer; margin-right:10px; transition:all 0.2s;
+}
+#play-again-btn:hover { background:rgba(255,255,255,0.2); }
+#win-menu-btn {
+  padding:12px 32px; background:rgba(255,200,0,0.15); border:1px solid rgba(255,200,0,0.4);
+  color:#ffd700; font-size:14px; border-radius:25px; cursor:pointer; transition:all 0.2s;
+}
+#win-menu-btn:hover { background:rgba(255,200,0,0.25); }
+</style>
+</head>
+<body>
+
+<div id="start-screen">
+  <div id="start-panel">
+    <h1>Chinese Checkers</h1>
+    <div class="subtitle">Glass Marble Edition</div>
+    <div class="section-label">Number of Players</div>
+    <div class="player-count-row">
+      <button class="count-btn" data-n="2">2</button>
+      <button class="count-btn selected" data-n="3">3</button>
+      <button class="count-btn" data-n="4">4</button>
+      <button class="count-btn" data-n="6">6</button>
+    </div>
+    <div class="section-label">Player Names</div>
+    <div id="player-names"></div>
+    <button id="start-btn">Start Game</button>
+  </div>
+</div>
+
+<div id="canvas-container"></div>
+
+<div id="hud">
+  <div id="top-bar">
+    <a href="../index.html" id="back-btn">← Menu</a>
+    <div id="turn-indicator">
+      <div id="turn-marble"></div>
+      <div>
+        <div id="turn-name">Player</div>
+        <div id="turn-label">Your turn</div>
+      </div>
+    </div>
+    <div style="width:80px"></div>
+  </div>
+  <div id="move-log">
+    <div id="move-log-title">Move Log</div>
+    <div id="log-entries"></div>
+  </div>
+  <div id="action-panel">
+    <button class="action-btn" id="end-turn-btn">End Jump Turn ✓</button>
+    <button class="action-btn" id="pass-btn">Pass Turn</button>
+  </div>
+</div>
+
+<div id="win-screen">
+  <div id="win-panel">
+    <div id="win-title">Winner!</div>
+    <div id="win-name">Player</div>
+    <div id="win-subtitle">All marbles home!</div>
+    <div style="display:flex;gap:10px;justify-content:center">
+      <button id="play-again-btn">Play Again</button>
+      <button id="win-menu-btn">Main Menu</button>
+    </div>
+  </div>
+</div>
+
+<script>
+// ═══════════════════════════════════════════════════════════════
+// AUDIO
+// ═══════════════════════════════════════════════════════════════
+let audioCtx = null;
+function getAC() {
+  if (!audioCtx) audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+  return audioCtx;
+}
+function tone(freq, dur, vol=0.25, type='sine') {
+  try {
+    const ac = getAC();
+    const o = ac.createOscillator(), g = ac.createGain();
+    o.connect(g); g.connect(ac.destination);
+    o.type = type; o.frequency.value = freq;
+    g.gain.setValueAtTime(vol, ac.currentTime);
+    g.gain.exponentialRampToValueAtTime(0.001, ac.currentTime + dur);
+    o.start(); o.stop(ac.currentTime + dur);
+  } catch(e) {}
+}
+function sndClick()   { tone(900, 0.07, 0.2); }
+function sndStep()    { tone(600, 0.09, 0.18); }
+function sndJump(n)   { tone(700 + n*100, 0.13, 0.22); }
+function sndInvalid() { tone(160, 0.1, 0.25, 'sawtooth'); }
+function sndWin() {
+  [523,659,784,1047,784,1047,1319].forEach((f,i) => setTimeout(()=>tone(f,0.28,0.28),i*115));
+}
+
+// ═══════════════════════════════════════════════════════════════
+// BOARD MATH
+// ═══════════════════════════════════════════════════════════════
+const HEX_DIRS = [[1,0],[-1,0],[0,1],[0,-1],[1,-1],[-1,1]];
+const HEX_SIZE = 1.08; // world-space spacing
+
+function axialTo3D(q, r, y=0) {
+  const x = HEX_SIZE * (Math.sqrt(3)*q + Math.sqrt(3)/2*r);
+  const z = HEX_SIZE * (1.5*r);
+  return new THREE.Vector3(x, y, z);
+}
+
+// Build board: center hex radius 4 + 6 triangle arms
+// Using cube coords: x+y+z=0, (q,r)=(x,z)
+// Arm conditions in axial (q=x, r=z, s=y=-(q+r)):
+//   Arm 0 (+x): q>=5, r>=-4, q+r<=4
+//   Arm 1 (+y, q+r<=-5): q>=-4, r>=-4, q+r<=-5
+//   Arm 2 (+z): r>=5, q>=-4, q+r<=4
+//   Arm 3 (-x): q<=-5, r<=4, q+r>=-4
+//   Arm 4 (-y, q+r>=5): q<=4, r<=4, q+r>=5
+//   Arm 5 (-z): r<=-5, q<=4, q+r>=-4
+function buildBoard() {
+  const cells = new Set();
+  const armOf = {}; // cell key → arm index (-1=center)
+
+  function armCheck(q, r) {
+    const s = -(q+r);
+    if (q>=5 && r>=-4 && s>=-4) return 0;
+    if (s>=5 && q>=-4 && r>=-4) return 1;
+    if (r>=5 && q>=-4 && s>=-4) return 2;
+    if (q<=-5 && r<=4 && s<=4) return 3;
+    if (s<=-5 && q<=4 && r<=4) return 4;
+    if (r<=-5 && q<=4 && s<=4) return 5;
+    return -2; // invalid
+  }
+
+  for (let q=-8; q<=8; q++) {
+    for (let r=-8; r<=8; r++) {
+      const s = -(q+r);
+      const key = `${q},${r}`;
+      // Center hex
+      if (Math.abs(q)<=4 && Math.abs(r)<=4 && Math.abs(s)<=4) {
+        cells.add(key); armOf[key]=-1; continue;
+      }
+      // Arm check
+      const arm = armCheck(q,r);
+      if (arm >= 0) { cells.add(key); armOf[key]=arm; }
+    }
+  }
+  return { cells, armOf };
+}
+
+// Verify 121 cells
+const _b = buildBoard();
+console.assert(_b.cells.size === 121, `Board has ${_b.cells.size} cells (expected 121)`);
+console.log('Board cells:', _b.cells.size);
+
+// ═══════════════════════════════════════════════════════════════
+// PLAYER SETUP
+// ═══════════════════════════════════════════════════════════════
+const COLORS_HEX  = [0xff3333, 0x3366ff, 0x22cc44, 0xffcc00, 0xcc44ff, 0x00cccc];
+const COLORS_CSS  = ['#ff3333','#3366ff','#22cc44','#ffcc00','#cc44ff','#00cccc'];
+const DEFAULT_NAMES = ['Red','Blue','Green','Yellow','Magenta','Cyan'];
+
+// Arm visual positions:
+// 0 = right (+x), 1 = top-left (+y/q+r<=-5), 2 = bottom (+z)
+// 3 = left (-x), 4 = bottom-right (-y/q+r>=5), 5 = top (-z)
+// Opposite: 0↔3, 1↔4, 2↔5
+const OPP = {0:3,1:4,2:5,3:0,4:1,5:2};
+
+// Player arm assignments by player count
+const ARM_ASSIGN = {
+  2: [2, 5],          // bottom ↔ top
+  3: [0, 2, 4],       // right, bottom, bottom-right (every other)
+  4: [5, 0, 2, 3],    // top↔bottom + right↔left pairs
+  6: [0,1,2,3,4,5],
+};
+
+// ═══════════════════════════════════════════════════════════════
+// THREE.JS GLOBALS
+// ═══════════════════════════════════════════════════════════════
+let renderer, scene, camera, orbitCtrl, raycaster, mouse;
+let sceneObjects = []; // non-persistent objects to clear on new game
+let holeMeshes = {};
+let marbleMeshes = {}; // key → Mesh
+let ghostMeshes = [];
+let selLight;
+let animating = false;
+let hoveredMarble = null;
+
+// ═══════════════════════════════════════════════════════════════
+// GAME STATE
+// ═══════════════════════════════════════════════════════════════
+let G = null; // game state object
+
+// ═══════════════════════════════════════════════════════════════
+// START SCREEN
+// ═══════════════════════════════════════════════════════════════
+let chosenCount = 3;
+const startScreen  = document.getElementById('start-screen');
+const playerNamesDiv = document.getElementById('player-names');
+
+document.querySelectorAll('.count-btn').forEach(b => {
+  b.addEventListener('click', () => {
+    document.querySelectorAll('.count-btn').forEach(x=>x.classList.remove('selected'));
+    b.classList.add('selected');
+    chosenCount = parseInt(b.dataset.n);
+    rebuildNameInputs();
+  });
+});
+rebuildNameInputs();
+
+function rebuildNameInputs() {
+  playerNamesDiv.innerHTML = '';
+  const arms = ARM_ASSIGN[chosenCount];
+  arms.forEach((arm,i) => {
+    const row = document.createElement('div'); row.className='name-row';
+    const dot = document.createElement('div'); dot.className='name-dot';
+    dot.style.background = COLORS_CSS[i];
+    dot.style.boxShadow = `0 0 8px ${COLORS_CSS[i]}`;
+    const inp = document.createElement('input'); inp.className='name-input';
+    inp.type='text'; inp.value=DEFAULT_NAMES[i]; inp.dataset.i=i;
+    row.append(dot,inp); playerNamesDiv.append(row);
+  });
+}
+
+document.getElementById('start-btn').addEventListener('click', () => {
+  const names = [...playerNamesDiv.querySelectorAll('.name-input')].map(i=>i.value||DEFAULT_NAMES[+i.dataset.i]);
+  startScreen.style.display = 'none';
+  startGame(chosenCount, names);
+});
+
+// ═══════════════════════════════════════════════════════════════
+// THREE.JS INIT (once)
+// ═══════════════════════════════════════════════════════════════
+function initThreeJS() {
+  renderer = new THREE.WebGLRenderer({ antialias:true });
+  renderer.setPixelRatio(Math.min(window.devicePixelRatio,2));
+  renderer.setSize(window.innerWidth, window.innerHeight);
+  renderer.shadowMap.enabled = true;
+  renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+  renderer.toneMapping = THREE.ACESFilmicToneMapping;
+  renderer.toneMappingExposure = 1.15;
+  document.getElementById('canvas-container').appendChild(renderer.domElement);
+
+  camera = new THREE.PerspectiveCamera(44, window.innerWidth/window.innerHeight, 0.1, 200);
+  camera.position.set(0, 20, 15);
+  camera.lookAt(0, 0, 0);
+
+  orbitCtrl = new THREE.OrbitControls(camera, renderer.domElement);
+  orbitCtrl.enableDamping = true; orbitCtrl.dampingFactor = 0.07;
+  orbitCtrl.minPolarAngle = Math.PI/6; orbitCtrl.maxPolarAngle = Math.PI/2.1;
+  orbitCtrl.minAzimuthAngle = -Math.PI/4; orbitCtrl.maxAzimuthAngle = Math.PI/4;
+  orbitCtrl.minDistance = 12; orbitCtrl.maxDistance = 32;
+  orbitCtrl.target.set(0,0,0);
+
+  raycaster = new THREE.Raycaster();
+  mouse = new THREE.Vector2();
+
+  window.addEventListener('resize', () => {
+    camera.aspect = window.innerWidth/window.innerHeight;
+    camera.updateProjectionMatrix();
+    renderer.setSize(window.innerWidth, window.innerHeight);
+  });
+  renderer.domElement.addEventListener('click', onCanvasClick);
+  renderer.domElement.addEventListener('mousemove', onMouseMove);
+
+  buildScene(); // persistent scene elements
+  requestAnimationFrame(renderLoop);
+}
+
+// ═══════════════════════════════════════════════════════════════
+// SCENE — PERSISTENT ELEMENTS (lights, bg)
+// ═══════════════════════════════════════════════════════════════
+function buildScene() {
+  scene = new THREE.Scene();
+  scene.background = new THREE.Color(0x030912);
+  scene.fog = new THREE.FogExp2(0x060c1e, 0.016);
+
+  // Star field
+  {
+    const geo = new THREE.BufferGeometry();
+    const pos = [];
+    for (let i=0;i<1000;i++) pos.push((Math.random()-.5)*140,(Math.random()-.5)*70+25,(Math.random()-.5)*140);
+    geo.setAttribute('position', new THREE.Float32BufferAttribute(pos,3));
+    const mat = new THREE.PointsMaterial({color:0x99aacc,size:0.07,transparent:true,opacity:0.55});
+    scene.add(new THREE.Points(geo,mat));
+  }
+
+  // Ambient
+  scene.add(new THREE.AmbientLight(0x2a3855, 1.0));
+
+  // Key light (warm, above-front)
+  const keyL = new THREE.DirectionalLight(0xffe0bb, 1.8);
+  keyL.position.set(6, 18, 10);
+  keyL.castShadow = true;
+  keyL.shadow.mapSize.set(2048,2048);
+  keyL.shadow.camera.near = 1; keyL.shadow.camera.far = 60;
+  keyL.shadow.camera.left = -16; keyL.shadow.camera.right = 16;
+  keyL.shadow.camera.top = 16; keyL.shadow.camera.bottom = -16;
+  scene.add(keyL);
+
+  // Warm point above board
+  const warmPt = new THREE.PointLight(0xffaa55, 2.2, 28);
+  warmPt.position.set(0, 9, 0);
+  scene.add(warmPt);
+
+  // Rim light (cool blue, behind)
+  const rimL = new THREE.DirectionalLight(0x334488, 0.7);
+  rimL.position.set(-4, 4, -12);
+  scene.add(rimL);
+
+  // Selected-marble light (moved dynamically)
+  selLight = new THREE.PointLight(0xffffff, 0, 5);
+  scene.add(selLight);
+}
+
+// ═══════════════════════════════════════════════════════════════
+// TEXTURES
+// ═══════════════════════════════════════════════════════════════
+function makeWoodTexture() {
+  const c=document.createElement('canvas'); c.width=512; c.height=512;
+  const ctx=c.getContext('2d');
+  const g=ctx.createLinearGradient(0,0,512,512);
+  g.addColorStop(0,'#3a1b07'); g.addColorStop(0.4,'#5a2b0e'); g.addColorStop(1,'#271506');
+  ctx.fillStyle=g; ctx.fillRect(0,0,512,512);
+  // grain
+  for (let i=0;i<50;i++) {
+    ctx.save();
+    ctx.globalAlpha = 0.08+Math.random()*0.12;
+    ctx.strokeStyle = Math.random()>.5 ? '#7a380f' : '#190900';
+    ctx.lineWidth = Math.random()*2.5+0.5;
+    ctx.beginPath();
+    const y0=Math.random()*512;
+    ctx.moveTo(0,y0);
+    ctx.bezierCurveTo(170,y0+Math.random()*30-15,340,y0+Math.random()*30-15,512,y0+Math.random()*15-7);
+    ctx.stroke(); ctx.restore();
+  }
+  return new THREE.CanvasTexture(c);
+}
+
+const _woodTex = null; // lazy
+
+// ═══════════════════════════════════════════════════════════════
+// BOARD MESH BUILD
+// ═══════════════════════════════════════════════════════════════
+function buildBoardMeshes(cells, armOf, players) {
+  const woodTex = makeWoodTexture();
+  woodTex.wrapS = woodTex.wrapT = THREE.RepeatWrapping;
+  woodTex.repeat.set(3,3);
+
+  // Base disc
+  const base = new THREE.Mesh(
+    new THREE.CylinderGeometry(11.5,11.5,0.28,64),
+    new THREE.MeshStandardMaterial({map:woodTex,roughness:0.88,metalness:0.06})
+  );
+  base.position.y = -0.3; base.receiveShadow = true;
+  addToScene(base);
+
+  // Edge ring
+  const ring = new THREE.Mesh(
+    new THREE.TorusGeometry(11.5,0.22,8,80),
+    new THREE.MeshStandardMaterial({color:0x1e0b03,roughness:0.6,metalness:0.25})
+  );
+  ring.rotation.x = Math.PI/2; ring.position.y = -0.17;
+  addToScene(ring);
+
+  // Build per-arm color map: armIdx → player color
+  const armColorMap = {};
+  players.forEach((p,pi) => {
+    armColorMap[p.homeArm] = COLORS_HEX[pi];
+    armColorMap[p.destArm] = COLORS_HEX[pi];
+  });
+
+  // Hole geometry (recessed dark disc)
+  const holeGeoFlat = new THREE.CircleGeometry(0.29,20);
+  const neutralMat = new THREE.MeshStandardMaterial({color:0x110704,roughness:1,metalness:0});
+
+  cells.forEach(key => {
+    const [q,r] = key.split(',').map(Number);
+    const pos = axialTo3D(q, r, -0.14);
+    const arm = armOf[key];
+    let mat = neutralMat;
+    if (arm >= 0 && armColorMap[arm] !== undefined) {
+      const col = new THREE.Color(armColorMap[arm]);
+      mat = new THREE.MeshStandardMaterial({color:col,roughness:1,metalness:0,transparent:true,opacity:0.22});
+    }
+    const hole = new THREE.Mesh(holeGeoFlat, mat);
+    hole.rotation.x = -Math.PI/2;
+    hole.position.copy(pos);
+    hole.userData.key = key;
+    hole.receiveShadow = true;
+    addToScene(hole);
+    holeMeshes[key] = hole;
+  });
+}
+
+// ═══════════════════════════════════════════════════════════════
+// MARBLE MESH
+// ═══════════════════════════════════════════════════════════════
+const marbleGeo = new THREE.SphereGeometry(0.40, 40, 40);
+
+function makeMarble(playerIdx) {
+  const col = new THREE.Color(COLORS_HEX[playerIdx]);
+  const mat = new THREE.MeshPhysicalMaterial({
+    color: col,
+    emissive: col, emissiveIntensity: 0.25,
+    roughness: 0.04, metalness: 0,
+    transmission: 0.88, thickness: 0.5, ior: 1.52,
+    transparent: true, opacity: 0.93,
+  });
+  const m = new THREE.Mesh(marbleGeo, mat);
+  m.castShadow = true;
+  return m;
+}
+
+// ═══════════════════════════════════════════════════════════════
+// SCENE OBJECT MANAGEMENT
+// ═══════════════════════════════════════════════════════════════
+function addToScene(obj) {
+  scene.add(obj);
+  sceneObjects.push(obj);
+}
+
+function clearGameObjects() {
+  sceneObjects.forEach(o => scene.remove(o));
+  sceneObjects = [];
+  holeMeshes = {};
+  marbleMeshes = {};
+  ghostMeshes = [];
+}
+
+// ═══════════════════════════════════════════════════════════════
+// GAME START
+// ═══════════════════════════════════════════════════════════════
+function startGame(numPlayers, names) {
+  // Kill any GSAP tweens on old marbles
+  Object.values(marbleMeshes).forEach(m => { gsap.killTweensOf(m.scale); gsap.killTweensOf(m.material); });
+  clearGameObjects();
+  clearGhosts(true);
+
+  document.getElementById('win-screen').classList.remove('show');
+  document.getElementById('end-turn-btn').classList.remove('visible');
+  document.getElementById('pass-btn').classList.remove('visible');
+  document.getElementById('log-entries').innerHTML = '';
+
+  const { cells, armOf } = buildBoard();
+  const cellList = [...cells];
+
+  // Arm cell lists
+  const armCells = {};
+  for (let a=0;a<6;a++) armCells[a]=[];
+  cellList.forEach(k => { if(armOf[k]>=0) armCells[armOf[k]].push(k); });
+
+  // Create players
+  const armAssign = ARM_ASSIGN[numPlayers];
+  const players = armAssign.map((arm, pi) => ({
+    idx: pi, name: names[pi],
+    homeArm: arm, destArm: OPP[arm],
+    pegs: [...armCells[arm]], // list of keys this player currently occupies
+    done: false,
+  }));
+
+  // Occupation map: key → playerIdx
+  const pegs = {};
+  players.forEach(p => p.pegs.forEach(k => pegs[k] = p.idx));
+
+  G = {
+    cells, armOf, players, pegs,
+    numPlayers, currentPlayer: 0,
+    phase: 'select', // 'select' | 'jump-chain'
+    selectedKey: null,
+    chainCount: 0,
+    chainVisited: null,
+    moveLog: [],
+    winner: null,
+  };
+
+  animating = false;
+  hoveredMarble = null;
+  selLight.intensity = 0;
+
+  // Build board
+  buildBoardMeshes(cells, armOf, players);
+
+  // Place marble meshes
+  players.forEach((p, pi) => {
+    p.pegs.forEach(k => {
+      const [q,r] = k.split(',').map(Number);
+      const pos = axialTo3D(q,r,0.40);
+      const m = makeMarble(pi);
+      m.position.copy(pos);
+      m.userData.key = k;
+      m.userData.playerIdx = pi;
+      addToScene(m);
+      marbleMeshes[k] = m;
+    });
+  });
+
+  updateHUD();
+}
+
+// ═══════════════════════════════════════════════════════════════
+// MOVE LOGIC
+// ═══════════════════════════════════════════════════════════════
+function getStepMoves(key) {
+  const [q,r] = key.split(',').map(Number);
+  const pi = G.pegs[key];
+  const moves = [];
+  HEX_DIRS.forEach(([dq,dr]) => {
+    const nk = `${q+dq},${r+dr}`;
+    if (G.cells.has(nk) && G.pegs[nk]===undefined) {
+      if (!isExitBlocked(key, nk, pi)) moves.push({key:nk,type:'step'});
+    }
+  });
+  return moves;
+}
+
+function getJumpsFrom(key, visited=new Set()) {
+  const [q,r] = key.split(',').map(Number);
+  const pi = G.pegs[key] ?? G.players[G.currentPlayer].idx;
+  const moves = [];
+  visited.add(key);
+  HEX_DIRS.forEach(([dq,dr]) => {
+    const mk = `${q+dq},${r+dr}`; // middle (must be occupied)
+    const lk = `${q+2*dq},${r+2*dr}`; // landing
+    if (G.cells.has(mk) && G.pegs[mk]!==undefined && G.cells.has(lk) && G.pegs[lk]===undefined && !visited.has(lk)) {
+      if (!isExitBlocked(key, lk, pi)) moves.push({key:lk,type:'jump'});
+    }
+  });
+  return moves;
+}
+
+function isExitBlocked(fromKey, toKey, pi) {
+  // A marble IN the destination triangle cannot exit to a non-dest, non-center cell
+  const fromArm = G.armOf[fromKey];
+  const toArm   = G.armOf[toKey];
+  const destArm = G.players[pi].destArm;
+  if (fromArm === destArm && toArm !== destArm && toArm !== -1) return true;
+  return false;
+}
+
+// ═══════════════════════════════════════════════════════════════
+// GHOSTS
+// ═══════════════════════════════════════════════════════════════
+const ghostGeo = new THREE.SphereGeometry(0.24, 16, 16);
+
+function showGhosts(moves, pi) {
+  clearGhosts();
+  const col = new THREE.Color(COLORS_HEX[pi]);
+  moves.forEach(mv => {
+    const [q,r] = mv.key.split(',').map(Number);
+    const pos = axialTo3D(q,r,0.24);
+    const mat = new THREE.MeshPhysicalMaterial({
+      color:col, emissive:col, emissiveIntensity:1.0,
+      transparent:true, opacity:0.38, roughness:0.05, metalness:0,
+    });
+    const g = new THREE.Mesh(ghostGeo, mat);
+    g.position.copy(pos);
+    g.userData.targetKey = mv.key;
+    g.userData.moveType = mv.type;
+    scene.add(g);
+    ghostMeshes.push(g);
+    gsap.to(g.scale, {x:1.35,y:1.35,z:1.35,duration:0.65,repeat:-1,yoyo:true,ease:'sine.inOut'});
+    gsap.to(mat, {opacity:0.65,duration:0.65,repeat:-1,yoyo:true,ease:'sine.inOut'});
+  });
+}
+
+function clearGhosts(full=false) {
+  ghostMeshes.forEach(g => { gsap.killTweensOf(g.scale); gsap.killTweensOf(g.material); scene.remove(g); });
+  ghostMeshes = [];
+}
+
+// ═══════════════════════════════════════════════════════════════
+// SELECTION
+// ═══════════════════════════════════════════════════════════════
+function selectMarble(key) {
+  if (G.selectedKey) deselect();
+  G.selectedKey = key;
+  const m = marbleMeshes[key];
+  if (!m) return;
+  gsap.to(m.scale, {x:1.22,y:1.22,z:1.22,duration:0.2,ease:'back.out'});
+  gsap.to(m.material, {emissiveIntensity:1.0,duration:0.2});
+  selLight.color.copy(m.material.color);
+  selLight.intensity = 1.8;
+  selLight.position.set(m.position.x, m.position.y+1.2, m.position.z);
+
+  const moves = G.phase==='jump-chain'
+    ? getJumpsFrom(key, new Set([key]))
+    : [...getStepMoves(key), ...getJumpsFrom(key)];
+  showGhosts(moves, G.currentPlayer);
+
+  if (moves.length === 0 && G.phase !== 'jump-chain') {
+    document.getElementById('pass-btn').classList.add('visible');
+  }
+}
+
+function deselect() {
+  if (G.selectedKey) {
+    const m = marbleMeshes[G.selectedKey];
+    if (m) {
+      gsap.killTweensOf(m.scale);
+      gsap.to(m.scale,{x:1,y:1,z:1,duration:0.15});
+      gsap.to(m.material,{emissiveIntensity:0.25,duration:0.15});
+    }
+  }
+  G.selectedKey = null;
+  selLight.intensity = 0;
+  clearGhosts();
+  document.getElementById('pass-btn').classList.remove('visible');
+}
+
+// ═══════════════════════════════════════════════════════════════
+// MOVE EXECUTION
+// ═══════════════════════════════════════════════════════════════
+function executeMove(fromKey, toKey, moveType, onDone) {
+  animating = true;
+  const m = marbleMeshes[fromKey];
+  const pi = G.pegs[fromKey];
+
+  // Update state
+  delete G.pegs[fromKey];
+  G.pegs[toKey] = pi;
+  delete marbleMeshes[fromKey];
+  marbleMeshes[toKey] = m;
+  m.userData.key = toKey;
+  const pp = G.players[pi];
+  const idx = pp.pegs.indexOf(fromKey);
+  if (idx>=0) pp.pegs[idx] = toKey;
+
+  // 3D arc animation
+  const target = axialTo3D(...toKey.split(',').map(Number), 0.40);
+  const dur = 0.44;
+  const sy = m.position.y, ty = target.y;
+  const arcHeight = 1.9;
+
+  gsap.to(m.position, {x:target.x, z:target.z, duration:dur, ease:'power2.inOut'});
+  // Y arc
+  gsap.to({p:0},{p:1, duration:dur, ease:'none', onUpdate:function() {
+    const progress = this.targets()[0].p;
+    m.position.y = sy + (ty-sy)*progress + arcHeight * Math.sin(progress*Math.PI);
+  }, onComplete:() => {
+    m.position.y = ty;
+    animating = false;
+    onDone && onDone();
+  }});
+}
+
+function doMove(fromKey, toKey, moveType) {
+  const pi = G.currentPlayer;
+  const prevKey = fromKey;
+  clearGhosts();
+
+  if (moveType === 'step') {
+    // Deselect before animating
+    const selKey = G.selectedKey;
+    G.selectedKey = null; selLight.intensity = 0;
+    executeMove(fromKey, toKey, 'step', () => {
+      const m = marbleMeshes[toKey];
+      if (m) { gsap.to(m.scale,{x:1,y:1,z:1,duration:0.1}); gsap.to(m.material,{emissiveIntensity:0.25,duration:0.1}); }
+      sndStep();
+      addLog(fromKey, toKey, 'step', pi);
+      if (!checkWin()) endTurn();
+    });
+    G.phase = 'select';
+    G.chainCount = 0;
+    document.getElementById('end-turn-btn').classList.remove('visible');
+  } else {
+    // Jump
+    G.chainCount++;
+    G.chainVisited = G.chainVisited || new Set([fromKey]);
+    G.chainVisited.add(toKey);
+    G.phase = 'jump-chain';
+    G.selectedKey = null; selLight.intensity = 0;
+
+    executeMove(fromKey, toKey, 'jump', () => {
+      sndJump(G.chainCount);
+      addLog(prevKey, toKey, 'jump', pi);
+
+      if (checkWin()) return;
+
+      // Re-select the moved marble
+      G.selectedKey = toKey;
+      const m = marbleMeshes[toKey];
+      if (m) {
+        gsap.to(m.scale,{x:1.22,y:1.22,z:1.22,duration:0.2});
+        gsap.to(m.material,{emissiveIntensity:1.0,duration:0.2});
+        selLight.color.copy(m.material.color);
+        selLight.intensity = 1.8;
+        selLight.position.copy(m.position).y += 1.2;
+      }
+
+      const nextJumps = getJumpsFrom(toKey, new Set(G.chainVisited));
+      if (nextJumps.length > 0) {
+        showGhosts(nextJumps, pi);
+        document.getElementById('end-turn-btn').classList.add('visible');
+      } else {
+        document.getElementById('end-turn-btn').classList.remove('visible');
+        setTimeout(finishJumpTurn, 250);
+      }
+    });
+    document.getElementById('end-turn-btn').classList.add('visible');
+  }
+}
+
+function finishJumpTurn() {
+  deselect();
+  G.phase = 'select';
+  G.chainCount = 0;
+  G.chainVisited = null;
+  document.getElementById('end-turn-btn').classList.remove('visible');
+  if (!checkWin()) endTurn();
+}
+
+document.getElementById('end-turn-btn').addEventListener('click', () => { if(!animating) finishJumpTurn(); });
+document.getElementById('pass-btn').addEventListener('click', () => { if(!animating) { deselect(); endTurn(); }});
+
+// ═══════════════════════════════════════════════════════════════
+// WIN CHECK
+// ═══════════════════════════════════════════════════════════════
+function checkWin() {
+  const pi = G.currentPlayer;
+  const p = G.players[pi];
+  if (p.done) return false;
+  const destCells = [...G.cells].filter(k => G.armOf[k] === p.destArm);
+  if (destCells.length === 10 && destCells.every(k => G.pegs[k] === pi)) {
+    p.done = true;
+    G.winner = pi;
+    triggerWin(p, pi);
+    return true;
+  }
+  return false;
+}
+
+function triggerWin(p, pi) {
+  sndWin();
+  deselect();
+  document.getElementById('end-turn-btn').classList.remove('visible');
+  document.getElementById('pass-btn').classList.remove('visible');
+
+  // Gold-pulse winning marbles
+  p.pegs.forEach(k => {
+    const m = marbleMeshes[k];
+    if (!m) return;
+    m.material.emissive.set(0xffd700);
+    gsap.to(m.material, {emissiveIntensity:1.6, duration:0.35, repeat:-1, yoyo:true});
+    gsap.to(m.scale, {x:1.28,y:1.28,z:1.28, duration:0.4, repeat:-1, yoyo:true});
+  });
+
+  document.getElementById('win-name').textContent = p.name;
+  document.getElementById('win-name').style.color = COLORS_CSS[pi];
+  setTimeout(() => document.getElementById('win-screen').classList.add('show'), 1200);
+}
+
+// ═══════════════════════════════════════════════════════════════
+// TURN MANAGEMENT
+// ═══════════════════════════════════════════════════════════════
+function endTurn() {
+  let next = (G.currentPlayer + 1) % G.numPlayers;
+  let tries = 0;
+  while (G.players[next].done && tries++ < G.numPlayers) {
+    next = (next + 1) % G.numPlayers;
+  }
+  G.currentPlayer = next;
+  G.phase = 'select';
+  G.chainCount = 0;
+  G.chainVisited = null;
+  updateHUD();
+}
+
+// ═══════════════════════════════════════════════════════════════
+// HUD
+// ═══════════════════════════════════════════════════════════════
+function updateHUD() {
+  if (!G) return;
+  const p = G.players[G.currentPlayer];
+  document.getElementById('turn-marble').style.cssText =
+    `background:${COLORS_CSS[G.currentPlayer]};box-shadow:0 0 14px ${COLORS_CSS[G.currentPlayer]};width:20px;height:20px;border-radius:50%`;
+  document.getElementById('turn-name').textContent = p.name;
+}
+
+const logLines = [];
+function addLog(from, to, type, pi) {
+  const p = G.players[pi];
+  const msg = `<span style="color:${COLORS_CSS[pi]}">${p.name}</span>: ${from}→${to} [${type}]`;
+  logLines.unshift(msg);
+  if (logLines.length > 5) logLines.pop();
+  document.getElementById('log-entries').innerHTML = logLines.map(l=>`<div class="log-entry">${l}</div>`).join('');
+}
+
+// ═══════════════════════════════════════════════════════════════
+// INPUT
+// ═══════════════════════════════════════════════════════════════
+function onCanvasClick(e) {
+  if (!G || animating || G.winner) return;
+  const rect = renderer.domElement.getBoundingClientRect();
+  mouse.x = ((e.clientX-rect.left)/rect.width)*2-1;
+  mouse.y = -((e.clientY-rect.top)/rect.height)*2+1;
+  raycaster.setFromCamera(mouse, camera);
+
+  // Ghost targets first
+  const gHits = raycaster.intersectObjects(ghostMeshes);
+  if (gHits.length > 0) {
+    const g = gHits[0].object;
+    if (G.selectedKey) {
+      doMove(G.selectedKey, g.userData.targetKey, g.userData.moveType);
+    }
+    return;
+  }
+
+  // Marbles
+  const mMeshes = Object.values(marbleMeshes);
+  const mHits = raycaster.intersectObjects(mMeshes);
+  if (mHits.length > 0) {
+    const hit = mHits[0].object;
+    const key = hit.userData.key;
+    const pi = hit.userData.playerIdx;
+
+    if (G.phase === 'jump-chain') {
+      // During chain jump only allow clicking next jump targets (handled by ghosts)
+      // clicking own marble does nothing
+      sndInvalid(); return;
+    }
+    if (pi !== G.currentPlayer) { sndInvalid(); return; }
+    if (G.selectedKey === key) { deselect(); return; }
+    sndClick();
+    selectMarble(key);
+    return;
+  }
+
+  // Click empty — deselect
+  if (G.phase !== 'jump-chain') deselect();
+}
+
+function onMouseMove(e) {
+  if (!G) return;
+  const rect = renderer.domElement.getBoundingClientRect();
+  mouse.x = ((e.clientX-rect.left)/rect.width)*2-1;
+  mouse.y = -((e.clientY-rect.top)/rect.height)*2+1;
+  raycaster.setFromCamera(mouse, camera);
+
+  const mMeshes = Object.values(marbleMeshes);
+  const hits = raycaster.intersectObjects(mMeshes);
+
+  if (hits.length > 0) {
+    const m = hits[0].object;
+    if (m !== hoveredMarble) {
+      if (hoveredMarble && !isSelected(hoveredMarble)) gsap.to(hoveredMarble.material,{emissiveIntensity:0.25,duration:0.12});
+      hoveredMarble = m;
+      if (!isSelected(m)) gsap.to(m.material,{emissiveIntensity:0.65,duration:0.12});
+      renderer.domElement.style.cursor='pointer';
+    }
+  } else {
+    if (hoveredMarble && !isSelected(hoveredMarble)) gsap.to(hoveredMarble.material,{emissiveIntensity:0.25,duration:0.12});
+    hoveredMarble = null;
+    renderer.domElement.style.cursor='default';
+  }
+}
+
+function isSelected(m) { return G && m.userData.key === G.selectedKey; }
+
+// ═══════════════════════════════════════════════════════════════
+// WIN SCREEN BUTTONS
+// ═══════════════════════════════════════════════════════════════
+document.getElementById('play-again-btn').addEventListener('click', () => {
+  document.getElementById('win-screen').classList.remove('show');
+  startScreen.style.display = 'flex';
+  G = null;
+});
+document.getElementById('win-menu-btn').addEventListener('click', () => {
+  window.location.href = '../index.html';
+});
+
+// ═══════════════════════════════════════════════════════════════
+// RENDER LOOP
+// ═══════════════════════════════════════════════════════════════
+function renderLoop() {
+  requestAnimationFrame(renderLoop);
+  orbitCtrl && orbitCtrl.update();
+  renderer.render(scene, camera);
+}
+
+// ═══════════════════════════════════════════════════════════════
+// BOOT
+// ═══════════════════════════════════════════════════════════════
+initThreeJS();
+</script>
+</body>
+</html>
