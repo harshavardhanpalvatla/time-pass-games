@@ -1,0 +1,345 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Time Pass Games</title>
+<style>
+  *, *::before, *::after { margin: 0; padding: 0; box-sizing: border-box; }
+
+  body {
+    min-height: 100vh;
+    background: #02020f;
+    font-family: 'Segoe UI', system-ui, sans-serif;
+    color: #fff;
+    overflow-x: hidden;
+  }
+
+  /* ── Background stars ── */
+  #stars {
+    position: fixed;
+    inset: 0;
+    pointer-events: none;
+    z-index: 0;
+  }
+
+  /* ── Layout ── */
+  .page {
+    position: relative;
+    z-index: 1;
+    max-width: 960px;
+    margin: 0 auto;
+    padding: 60px 24px 80px;
+  }
+
+  /* ── Header ── */
+  header {
+    text-align: center;
+    margin-bottom: 64px;
+  }
+  .logo {
+    font-size: clamp(38px, 7vw, 72px);
+    font-weight: 900;
+    letter-spacing: 4px;
+    text-transform: uppercase;
+    line-height: 1.1;
+    margin-bottom: 12px;
+  }
+  .logo span:nth-child(1) { color: #ff2244; text-shadow: 0 0 24px #ff224488; }
+  .logo span:nth-child(2) { color: #fff; }
+  .logo span:nth-child(3) { color: #ffdd00; text-shadow: 0 0 24px #ffdd0088; }
+  .tagline {
+    font-size: 13px;
+    letter-spacing: 4px;
+    color: rgba(255,255,255,0.3);
+    text-transform: uppercase;
+  }
+
+  /* ── Divider ── */
+  .section-title {
+    font-size: 11px;
+    letter-spacing: 4px;
+    text-transform: uppercase;
+    color: rgba(255,255,255,0.25);
+    margin-bottom: 24px;
+    display: flex;
+    align-items: center;
+    gap: 16px;
+  }
+  .section-title::before, .section-title::after {
+    content: '';
+    flex: 1;
+    height: 1px;
+    background: rgba(255,255,255,0.07);
+  }
+
+  /* ── Game grid ── */
+  .games-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+    gap: 20px;
+  }
+
+  /* ── Game card ── */
+  .game-card {
+    display: block;
+    text-decoration: none;
+    background: rgba(10,10,35,0.7);
+    border: 1px solid rgba(255,255,255,0.07);
+    border-radius: 20px;
+    overflow: hidden;
+    transition: transform 0.22s cubic-bezier(0.34,1.56,0.64,1),
+                box-shadow 0.22s ease,
+                border-color 0.22s ease;
+    cursor: pointer;
+    position: relative;
+  }
+  .game-card:hover {
+    transform: translateY(-6px) scale(1.02);
+    border-color: rgba(255,255,255,0.16);
+  }
+  .game-card::before {
+    content: '';
+    position: absolute;
+    inset: 0;
+    background: linear-gradient(135deg, rgba(255,255,255,0.04) 0%, transparent 55%);
+    pointer-events: none;
+    border-radius: 20px;
+  }
+
+  /* card accent top bar */
+  .card-bar {
+    height: 3px;
+    width: 100%;
+  }
+
+  .card-preview {
+    width: 100%;
+    aspect-ratio: 16/9;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 72px;
+    position: relative;
+    overflow: hidden;
+  }
+  .card-preview-bg {
+    position: absolute;
+    inset: 0;
+    opacity: 0.18;
+    transition: opacity 0.3s;
+  }
+  .game-card:hover .card-preview-bg { opacity: 0.28; }
+  .card-preview-icon {
+    font-size: 64px;
+    position: relative;
+    z-index: 1;
+    filter: drop-shadow(0 0 16px rgba(255,255,255,0.3));
+    transition: transform 0.3s cubic-bezier(0.34,1.56,0.64,1);
+  }
+  .game-card:hover .card-preview-icon { transform: scale(1.12) rotate(-4deg); }
+
+  .card-body {
+    padding: 20px 22px 22px;
+  }
+  .card-tags {
+    display: flex;
+    gap: 6px;
+    flex-wrap: wrap;
+    margin-bottom: 10px;
+  }
+  .tag {
+    font-size: 10px;
+    font-weight: 700;
+    letter-spacing: 1.5px;
+    text-transform: uppercase;
+    padding: 3px 9px;
+    border-radius: 20px;
+    border: 1px solid;
+    opacity: 0.75;
+  }
+  .card-title {
+    font-size: 20px;
+    font-weight: 800;
+    letter-spacing: 0.5px;
+    color: #fff;
+    margin-bottom: 6px;
+  }
+  .card-desc {
+    font-size: 13px;
+    color: rgba(255,255,255,0.45);
+    line-height: 1.55;
+    margin-bottom: 18px;
+  }
+  .card-play {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    font-size: 12px;
+    font-weight: 700;
+    letter-spacing: 2px;
+    text-transform: uppercase;
+    padding: 9px 20px;
+    border-radius: 30px;
+    border: 1px solid rgba(255,255,255,0.15);
+    background: rgba(255,255,255,0.05);
+    color: rgba(255,255,255,0.8);
+    transition: all 0.18s;
+  }
+  .game-card:hover .card-play {
+    background: rgba(255,255,255,0.1);
+    color: #fff;
+    border-color: rgba(255,255,255,0.28);
+  }
+  .card-play-arrow {
+    transition: transform 0.18s;
+  }
+  .game-card:hover .card-play-arrow { transform: translateX(4px); }
+
+  /* ── Card themes ── */
+  /* Connect 4 */
+  .theme-connect4 .card-bar { background: linear-gradient(90deg, #ff2244, #ffdd00); }
+  .theme-connect4 .card-preview-bg { background: linear-gradient(135deg, #1a0008, #1a1a00); }
+  .theme-connect4 .card-play { border-color: rgba(255,34,68,0.3); }
+  .theme-connect4:hover { box-shadow: 0 16px 48px rgba(255,34,68,0.15), 0 0 0 1px rgba(255,34,68,0.2); }
+  .theme-connect4 .tag { color: #ff6680; border-color: rgba(255,34,68,0.3); background: rgba(255,34,68,0.08); }
+
+  /* Vaikuntapali */
+  .theme-vaikunta .card-bar { background: linear-gradient(90deg, #ff9500, #ffd700, #c8a000); }
+  .theme-vaikunta .card-preview-bg { background: linear-gradient(135deg, #1a0e00, #0a1200); }
+  .theme-vaikunta .card-play { border-color: rgba(255,160,0,0.3); }
+  .theme-vaikunta:hover { box-shadow: 0 16px 48px rgba(255,160,0,0.15), 0 0 0 1px rgba(255,160,0,0.25); }
+  .theme-vaikunta .tag { color: #ffc04d; border-color: rgba(255,160,0,0.35); background: rgba(255,160,0,0.08); }
+
+  /* ── Coming soon card ── */
+  .card-coming-soon {
+    opacity: 0.4;
+    pointer-events: none;
+    filter: grayscale(0.5);
+  }
+  .coming-badge {
+    position: absolute;
+    top: 14px;
+    right: 14px;
+    font-size: 9px;
+    font-weight: 700;
+    letter-spacing: 2px;
+    text-transform: uppercase;
+    background: rgba(255,255,255,0.08);
+    border: 1px solid rgba(255,255,255,0.12);
+    color: rgba(255,255,255,0.4);
+    padding: 4px 10px;
+    border-radius: 20px;
+  }
+
+  /* ── Footer ── */
+  footer {
+    text-align: center;
+    margin-top: 64px;
+    font-size: 11px;
+    letter-spacing: 2px;
+    color: rgba(255,255,255,0.15);
+    text-transform: uppercase;
+  }
+</style>
+</head>
+<body>
+
+<canvas id="stars"></canvas>
+
+<div class="page">
+  <header>
+    <div class="logo">
+      <span>Time</span> <span>Pass</span> <span>Games</span>
+    </div>
+    <p class="tagline">Browser games — no install, just play</p>
+  </header>
+
+  <p class="section-title">All Games</p>
+
+  <div class="games-grid">
+
+    <!-- Connect 4 -->
+    <a class="game-card theme-connect4" href="connect4.html">
+      <div class="card-bar"></div>
+      <div class="card-preview">
+        <div class="card-preview-bg"></div>
+        <span class="card-preview-icon">🔴</span>
+      </div>
+      <div class="card-body">
+        <div class="card-tags">
+          <span class="tag">Strategy</span>
+          <span class="tag">vs CPU</span>
+          <span class="tag">3D</span>
+        </div>
+        <div class="card-title">Connect 4 — Neon Arena</div>
+        <div class="card-desc">Drop discs in a glowing 3D board. Beat the minimax AI or challenge a friend.</div>
+        <span class="card-play">Play <span class="card-play-arrow">→</span></span>
+      </div>
+    </a>
+
+    <!-- Vaikuntapali -->
+    <a class="game-card theme-vaikunta" href="vaikuntapali/index.html">
+      <div class="card-bar"></div>
+      <div class="card-preview">
+        <div class="card-preview-bg"></div>
+        <span class="card-preview-icon">🐍</span>
+      </div>
+      <div class="card-body">
+        <div class="card-tags">
+          <span class="tag">Board Game</span>
+          <span class="tag">Multiplayer</span>
+          <span class="tag">Indian</span>
+        </div>
+        <div class="card-title">Vaikuntapali</div>
+        <div class="card-desc">The classic Indian Snakes & Ladders. Reach Vaikuntam through virtue — and avoid the serpents of sin.</div>
+        <span class="card-play">Play <span class="card-play-arrow">→</span></span>
+      </div>
+    </a>
+
+  </div>
+
+  <footer>Time Pass Games &nbsp;·&nbsp; Open source fun</footer>
+</div>
+
+<script>
+// Starfield canvas
+const canvas = document.getElementById('stars');
+const ctx = canvas.getContext('2d');
+let stars = [];
+
+function resize() {
+  canvas.width  = window.innerWidth;
+  canvas.height = window.innerHeight;
+}
+
+function initStars() {
+  stars = Array.from({ length: 200 }, () => ({
+    x: Math.random() * canvas.width,
+    y: Math.random() * canvas.height,
+    r: Math.random() * 1.2 + 0.2,
+    a: Math.random(),
+    speed: Math.random() * 0.004 + 0.001,
+    phase: Math.random() * Math.PI * 2,
+  }));
+}
+
+function drawStars(t) {
+  ctx.clearRect(0, 0, canvas.width, canvas.height);
+  for (const s of stars) {
+    const alpha = s.a * (0.4 + 0.6 * Math.sin(t * s.speed + s.phase));
+    ctx.beginPath();
+    ctx.arc(s.x, s.y, s.r, 0, Math.PI * 2);
+    ctx.fillStyle = `rgba(255,255,255,${alpha.toFixed(3)})`;
+    ctx.fill();
+  }
+  requestAnimationFrame(drawStars);
+}
+
+resize();
+initStars();
+window.addEventListener('resize', () => { resize(); initStars(); });
+requestAnimationFrame(drawStars);
+</script>
+</body>
+</html>
