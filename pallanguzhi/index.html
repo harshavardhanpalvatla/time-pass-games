@@ -1,0 +1,1128 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Pallanguzhi — Traditional South Indian Mancala</title>
+<script src="https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/gsap@3.12.4/dist/gsap.min.js"></script>
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body {
+    background: #1a0d05;
+    font-family: 'Georgia', serif;
+    overflow: hidden;
+    width: 100vw; height: 100vh;
+  }
+  #canvas-container {
+    position: fixed; inset: 0;
+  }
+  #ui-overlay {
+    position: fixed; inset: 0;
+    pointer-events: none;
+    z-index: 10;
+  }
+
+  /* Player panels */
+  .player-panel {
+    position: absolute;
+    left: 50%; transform: translateX(-50%);
+    background: rgba(10,5,2,0.72);
+    border: 1px solid rgba(200,150,80,0.35);
+    border-radius: 16px;
+    padding: 10px 28px;
+    backdrop-filter: blur(12px);
+    display: flex; align-items: center; gap: 18px;
+    transition: border-color 0.4s, box-shadow 0.4s;
+  }
+  .player-panel.active {
+    border-color: rgba(255,190,80,0.75);
+    box-shadow: 0 0 24px rgba(255,160,40,0.35);
+  }
+  #p2-panel { top: 12px; }
+  #p1-panel { bottom: 12px; }
+
+  .player-name {
+    font-size: 15px; font-weight: bold; letter-spacing: 1px;
+    color: #f5c97a;
+  }
+  .player-seeds {
+    font-size: 13px; color: #c8a86a;
+  }
+  .turn-dot {
+    width: 10px; height: 10px; border-radius: 50%;
+    background: #4a3a22;
+    transition: background 0.4s, box-shadow 0.4s;
+  }
+  .turn-dot.active {
+    background: #ffb840;
+    box-shadow: 0 0 10px #ffb840;
+  }
+
+  /* Seed count labels */
+  .seed-label {
+    position: absolute;
+    transform: translate(-50%, -50%);
+    color: #ffe8b0;
+    font-size: 13px;
+    font-weight: bold;
+    text-shadow: 0 1px 4px rgba(0,0,0,0.9), 0 0 8px rgba(0,0,0,0.7);
+    pointer-events: none;
+    transition: opacity 0.2s;
+    font-family: 'Georgia', serif;
+    background: rgba(0,0,0,0.5);
+    border-radius: 8px;
+    padding: 1px 5px;
+    letter-spacing: 0.5px;
+  }
+
+  /* Status message */
+  #status-msg {
+    position: absolute;
+    top: 50%; left: 50%;
+    transform: translate(-50%, -50%);
+    background: rgba(10,5,2,0.82);
+    border: 1px solid rgba(200,150,60,0.4);
+    border-radius: 12px;
+    padding: 10px 24px;
+    color: #f5d590;
+    font-size: 15px;
+    letter-spacing: 0.5px;
+    backdrop-filter: blur(10px);
+    pointer-events: none;
+    opacity: 0;
+    transition: opacity 0.3s;
+    text-align: center;
+  }
+  #status-msg.visible { opacity: 1; }
+
+  /* Instruction */
+  #instruction {
+    position: absolute;
+    bottom: 72px; left: 50%; transform: translateX(-50%);
+    color: rgba(200,160,80,0.75);
+    font-size: 13px;
+    pointer-events: none;
+    text-align: center;
+    letter-spacing: 0.5px;
+  }
+
+  /* Back to menu */
+  #back-btn {
+    position: absolute;
+    top: 14px; left: 20px;
+    pointer-events: all;
+    color: rgba(200,150,80,0.7);
+    font-size: 13px;
+    text-decoration: none;
+    background: rgba(10,5,2,0.6);
+    border: 1px solid rgba(200,150,80,0.25);
+    border-radius: 8px;
+    padding: 6px 14px;
+    backdrop-filter: blur(8px);
+    transition: color 0.2s, border-color 0.2s;
+  }
+  #back-btn:hover { color: #f5c97a; border-color: rgba(200,150,80,0.6); }
+
+  /* Win screen */
+  #win-screen {
+    position: fixed; inset: 0;
+    background: rgba(10,5,2,0.9);
+    display: none; align-items: center; justify-content: center;
+    z-index: 100;
+    backdrop-filter: blur(16px);
+  }
+  #win-screen.visible { display: flex; }
+  .win-box {
+    background: rgba(20,10,4,0.95);
+    border: 2px solid rgba(220,170,70,0.5);
+    border-radius: 24px;
+    padding: 48px 56px;
+    text-align: center;
+    box-shadow: 0 0 80px rgba(200,120,30,0.25);
+  }
+  .win-title { font-size: 32px; color: #f5c97a; margin-bottom: 12px; letter-spacing: 2px; }
+  .win-sub { font-size: 16px; color: #c8a86a; margin-bottom: 30px; }
+  .win-scores { display: flex; gap: 40px; justify-content: center; margin-bottom: 36px; }
+  .win-score-item { text-align: center; }
+  .win-score-num { font-size: 36px; font-weight: bold; color: #ffe0a0; }
+  .win-score-label { font-size: 13px; color: #a07850; margin-top: 4px; }
+  .win-btns { display: flex; gap: 16px; justify-content: center; pointer-events: all; }
+  .win-btn {
+    padding: 12px 28px;
+    border-radius: 10px;
+    font-size: 15px;
+    font-family: 'Georgia', serif;
+    cursor: pointer;
+    border: 1px solid rgba(200,150,80,0.4);
+    transition: all 0.2s;
+  }
+  .win-btn-primary { background: rgba(180,120,40,0.3); color: #f5c97a; }
+  .win-btn-primary:hover { background: rgba(180,120,40,0.5); border-color: rgba(220,170,80,0.7); }
+  .win-btn-secondary { background: rgba(30,15,5,0.5); color: #a07850; }
+  .win-btn-secondary:hover { background: rgba(50,25,8,0.6); color: #c8a86a; }
+
+  /* Thinking indicator */
+  #thinking {
+    position: absolute;
+    top: 50%; left: 50%;
+    transform: translate(-50%, -50%);
+    color: rgba(200,160,80,0.6);
+    font-size: 14px;
+    font-style: italic;
+    pointer-events: none;
+    opacity: 0;
+    letter-spacing: 1px;
+  }
+  #thinking.visible { opacity: 1; }
+</style>
+</head>
+<body>
+<div id="canvas-container"></div>
+
+<div id="ui-overlay">
+  <a href="../index.html" id="back-btn">← Menu</a>
+
+  <div class="player-panel" id="p2-panel">
+    <div class="turn-dot" id="p2-dot"></div>
+    <div>
+      <div class="player-name">Player 2 (AI)</div>
+      <div class="player-seeds">Store: <span id="p2-store">0</span> seeds</div>
+    </div>
+  </div>
+
+  <div class="player-panel" id="p1-panel">
+    <div class="turn-dot" id="p1-dot"></div>
+    <div>
+      <div class="player-name">Player 1 (You)</div>
+      <div class="player-seeds">Store: <span id="p1-store">0</span> seeds</div>
+    </div>
+  </div>
+
+  <div id="status-msg"></div>
+  <div id="instruction">Click any cup on your row to sow seeds</div>
+  <div id="thinking">AI is thinking...</div>
+</div>
+
+<div id="win-screen">
+  <div class="win-box">
+    <div class="win-title" id="win-title">🎉 Victory!</div>
+    <div class="win-sub" id="win-sub">Player 1 wins the game</div>
+    <div class="win-scores">
+      <div class="win-score-item">
+        <div class="win-score-num" id="win-p1-score">0</div>
+        <div class="win-score-label">Player 1</div>
+      </div>
+      <div class="win-score-item">
+        <div class="win-score-num" id="win-p2-score">0</div>
+        <div class="win-score-label">Player 2 (AI)</div>
+      </div>
+    </div>
+    <div class="win-btns">
+      <button class="win-btn win-btn-primary" id="play-again-btn">Play Again</button>
+      <a href="../index.html" class="win-btn win-btn-secondary">Menu</a>
+    </div>
+  </div>
+</div>
+
+<script>
+// ============================================================
+// AUDIO ENGINE
+// ============================================================
+const AudioEngine = (() => {
+  let ctx = null;
+  function getCtx() {
+    if (!ctx) ctx = new (window.AudioContext || window.webkitAudioContext)();
+    return ctx;
+  }
+
+  function plop(pitch = 310) {
+    const c = getCtx();
+    const osc = c.createOscillator();
+    const gain = c.createGain();
+    const reverb = c.createConvolver();
+
+    // tiny impulse for reverb
+    const buf = c.createBuffer(1, c.sampleRate * 0.3, c.sampleRate);
+    const d = buf.getChannelData(0);
+    for (let i = 0; i < d.length; i++) d[i] = (Math.random()*2-1) * Math.pow(1 - i/d.length, 8);
+    reverb.buffer = buf;
+
+    osc.connect(gain);
+    gain.connect(reverb);
+    reverb.connect(c.destination);
+    gain.connect(c.destination);
+
+    osc.type = 'sine';
+    osc.frequency.setValueAtTime(pitch, c.currentTime);
+    osc.frequency.exponentialRampToValueAtTime(pitch * 0.5, c.currentTime + 0.12);
+    gain.gain.setValueAtTime(0.18, c.currentTime);
+    gain.gain.exponentialRampToValueAtTime(0.001, c.currentTime + 0.18);
+    osc.start(c.currentTime);
+    osc.stop(c.currentTime + 0.2);
+  }
+
+  function rattle() {
+    const c = getCtx();
+    const buf = c.createBuffer(1, Math.floor(c.sampleRate * 0.15), c.sampleRate);
+    const d = buf.getChannelData(0);
+    for (let i = 0; i < d.length; i++) d[i] = (Math.random()*2-1) * Math.pow(1 - i/d.length, 3) * 0.5;
+    const src = c.createBufferSource();
+    const gain = c.createGain();
+    // bandpass filter for woody sound
+    const filter = c.createBiquadFilter();
+    filter.type = 'bandpass';
+    filter.frequency.value = 800;
+    filter.Q.value = 1.5;
+    src.buffer = buf;
+    src.connect(filter);
+    filter.connect(gain);
+    gain.connect(c.destination);
+    gain.gain.setValueAtTime(0.4, c.currentTime);
+    src.start();
+  }
+
+  function capture() {
+    const c = getCtx();
+    // cascade of plops
+    for (let i = 0; i < 5; i++) {
+      setTimeout(() => plop(320 + i*30), i*60);
+    }
+    // collect chime
+    setTimeout(() => {
+      const osc = c.createOscillator();
+      const gain = c.createGain();
+      osc.connect(gain); gain.connect(c.destination);
+      osc.type = 'triangle';
+      osc.frequency.setValueAtTime(660, c.currentTime);
+      osc.frequency.setValueAtTime(880, c.currentTime + 0.1);
+      gain.gain.setValueAtTime(0.22, c.currentTime);
+      gain.gain.exponentialRampToValueAtTime(0.001, c.currentTime + 0.5);
+      osc.start(); osc.stop(c.currentTime + 0.55);
+    }, 400);
+  }
+
+  function noCapture() {
+    const c = getCtx();
+    const osc = c.createOscillator();
+    const gain = c.createGain();
+    osc.connect(gain); gain.connect(c.destination);
+    osc.type = 'sine';
+    osc.frequency.setValueAtTime(220, c.currentTime);
+    osc.frequency.exponentialRampToValueAtTime(160, c.currentTime + 0.3);
+    gain.gain.setValueAtTime(0.1, c.currentTime);
+    gain.gain.exponentialRampToValueAtTime(0.001, c.currentTime + 0.3);
+    osc.start(); osc.stop(c.currentTime + 0.35);
+  }
+
+  function win() {
+    const c = getCtx();
+    const notes = [523, 659, 784, 1047, 1319];
+    notes.forEach((f, i) => {
+      setTimeout(() => {
+        const osc = c.createOscillator();
+        const gain = c.createGain();
+        osc.connect(gain); gain.connect(c.destination);
+        osc.type = 'triangle';
+        osc.frequency.value = f;
+        gain.gain.setValueAtTime(0.25, c.currentTime);
+        gain.gain.exponentialRampToValueAtTime(0.001, c.currentTime + 0.6);
+        osc.start(); osc.stop(c.currentTime + 0.65);
+      }, i * 180);
+    });
+  }
+
+  return { plop, rattle, capture, noCapture, win };
+})();
+
+// ============================================================
+// GAME LOGIC
+// ============================================================
+// Index layout: cups[0..6] = Player1 row (bottom), cups[7..13] = Player2 row (top)
+// Sowing direction (counterclockwise from board perspective):
+//   P1: indices 6,5,4,3,2,1,0,7,8,9,10,11,12,13,6,5,...
+//   P2: indices 7,8,9,10,11,12,13,6,5,4,3,2,1,0,7,...
+// Store indices: 14=P1 store, 15=P2 store
+
+const TOTAL_CUPS = 14;
+const P1_ROW = [0,1,2,3,4,5,6];
+const P2_ROW = [7,8,9,10,11,12,13];
+
+// Sowing sequence starting from each cup for P1: right-to-left on P1, left-to-right on P2
+function getNextCup(current, player) {
+  // full sequence loop for P1: 6,5,4,3,2,1,0,7,8,9,10,11,12,13 (repeat)
+  // for P2: 7,8,9,10,11,12,13,6,5,4,3,2,1,0 (repeat)
+  const p1seq = [6,5,4,3,2,1,0,7,8,9,10,11,12,13];
+  const p2seq = [7,8,9,10,11,12,13,6,5,4,3,2,1,0];
+  const seq = player === 1 ? p1seq : p2seq;
+  const idx = seq.indexOf(current);
+  return seq[(idx + 1) % seq.length];
+}
+
+function getOpposite(cupIndex) {
+  // P1 row: indices 0-6 (left to right, z=+1.1)
+  // P2 row: indices 7-13 (left to right, z=-1.1)
+  // Cup 0 is directly across from cup 7 (both leftmost)
+  // Cup 6 is directly across from cup 13 (both rightmost)
+  if (P1_ROW.includes(cupIndex)) return cupIndex + 7;  // P1→P2: 0→7, 1→8, ..., 6→13
+  else return cupIndex - 7;                             // P2→P1: 7→0, 8→1, ..., 13→6
+}
+
+class PallangaGame {
+  constructor() {
+    this.reset();
+  }
+
+  reset() {
+    this.cups = new Array(TOTAL_CUPS).fill(12);
+    this.stores = [0, 0]; // [p1, p2]
+    this.currentPlayer = 1; // 1 or 2
+    this.phase = 'select'; // 'select' | 'animating'
+    this.gameOver = false;
+  }
+
+  getPlayerCups(player) {
+    return player === 1 ? P1_ROW : P2_ROW;
+  }
+
+  canMove(player) {
+    return this.getPlayerCups(player).some(i => this.cups[i] > 0);
+  }
+
+  // Compute full sow from cupIndex, return list of events for animation
+  computeSow(startCup, player) {
+    const events = [];
+    const cups = [...this.cups];
+    let seeds = cups[startCup];
+    cups[startCup] = 0;
+    events.push({ type: 'pickup', cup: startCup, seeds });
+
+    let current = startCup;
+    while (seeds > 0) {
+      const next = getNextCup(current, player);
+      cups[next]++;
+      seeds--;
+      events.push({ type: 'sow', cup: next, seedsInCup: cups[next] });
+      current = next;
+
+      if (seeds === 0) {
+        // Check if next-next cup is non-empty → continue
+        const afterLast = getNextCup(current, player);
+        if (cups[afterLast] > 0) {
+          seeds = cups[afterLast];
+          cups[afterLast] = 0;
+          events.push({ type: 'pickup', cup: afterLast, seeds });
+          current = afterLast;
+        } else {
+          // Turn ends: check capture
+          const opp = getOpposite(current);
+          if (cups[opp] > 0) {
+            const captured = cups[opp];
+            cups[opp] = 0;
+            events.push({ type: 'capture', from: opp, seeds: captured, player });
+          } else {
+            events.push({ type: 'noCapture' });
+          }
+        }
+      }
+    }
+
+    // Final state
+    events.push({ type: 'finalState', cups: [...cups] });
+    return events;
+  }
+
+  applyEvents(events, player) {
+    const last = events[events.length - 1];
+    this.cups = [...last.cups];
+    let captured = 0;
+    events.forEach(e => {
+      if (e.type === 'capture') captured += e.seeds;
+    });
+    this.stores[player - 1] += captured;
+  }
+
+  switchTurn() {
+    this.currentPlayer = this.currentPlayer === 1 ? 2 : 1;
+    if (!this.canMove(this.currentPlayer)) {
+      // Opponent captures remaining
+      const opp = this.currentPlayer === 1 ? 2 : 1;
+      const remaining = this.cups.reduce((a, b) => a + b, 0);
+      this.stores[opp - 1] += remaining;
+      this.cups.fill(0);
+      this.gameOver = true;
+    }
+  }
+
+  // AI: greedy — pick cup with most captured seeds; fallback: most seeds (continuation)
+  aiMove() {
+    const cups = P2_ROW.filter(i => this.cups[i] > 0);
+    if (cups.length === 0) return null;
+
+    let best = null;
+    let bestScore = -Infinity;
+
+    for (const cup of cups) {
+      const events = this.computeSow(cup, 2);
+      let captured = 0;
+      let hasContinuation = false;
+      events.forEach(e => {
+        if (e.type === 'capture') captured += e.seeds;
+        if (e.type === 'pickup' && e.cup !== cup) hasContinuation = true;
+      });
+      const score = captured * 1000 + (hasContinuation ? 500 : 0) + this.cups[cup];
+      if (score > bestScore) { bestScore = score; best = cup; }
+    }
+    return best;
+  }
+}
+
+// ============================================================
+// THREE.JS SCENE
+// ============================================================
+const scene = new THREE.Scene();
+scene.background = new THREE.Color(0x120800);
+scene.fog = new THREE.Fog(0x120800, 18, 35);
+
+const camera = new THREE.PerspectiveCamera(45, window.innerWidth / window.innerHeight, 0.1, 100);
+camera.position.set(0, 9, 7);
+camera.lookAt(0, 0, 0);
+
+const renderer = new THREE.WebGLRenderer({ antialias: true });
+renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+renderer.setSize(window.innerWidth, window.innerHeight);
+renderer.shadowMap.enabled = true;
+renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+renderer.toneMapping = THREE.ACESFilmicToneMapping;
+renderer.toneMappingExposure = 1.2;
+document.getElementById('canvas-container').appendChild(renderer.domElement);
+
+// Lighting
+const ambientLight = new THREE.AmbientLight(0x3a2010, 0.8);
+scene.add(ambientLight);
+
+const candleLight = new THREE.PointLight(0xffaa40, 3, 20);
+candleLight.position.set(0, 6, 0);
+candleLight.castShadow = true;
+candleLight.shadow.mapSize.width = 1024;
+candleLight.shadow.mapSize.height = 1024;
+scene.add(candleLight);
+
+const dirLight = new THREE.DirectionalLight(0xffd080, 1.2);
+dirLight.position.set(4, 8, 3);
+dirLight.castShadow = true;
+scene.add(dirLight);
+
+const rimLight = new THREE.DirectionalLight(0x604020, 0.5);
+rimLight.position.set(-3, 2, -5);
+scene.add(rimLight);
+
+// Candle flicker
+let flickerT = 0;
+function flickerCandle() {
+  flickerT += 0.04;
+  candleLight.intensity = 2.8 + Math.sin(flickerT * 2.3) * 0.3 + Math.sin(flickerT * 5.1) * 0.15;
+}
+
+// Wood texture
+function makeWoodTexture(w=512, h=512) {
+  const cv = document.createElement('canvas');
+  cv.width = w; cv.height = h;
+  const ctx = cv.getContext('2d');
+  // base
+  const grad = ctx.createLinearGradient(0, 0, w, h);
+  grad.addColorStop(0, '#7a4520');
+  grad.addColorStop(0.4, '#8c5228');
+  grad.addColorStop(0.7, '#6b3d18');
+  grad.addColorStop(1, '#7a4520');
+  ctx.fillStyle = grad;
+  ctx.fillRect(0, 0, w, h);
+  // wood grain lines
+  for (let i = 0; i < 60; i++) {
+    const y = (i / 60) * h + Math.sin(i * 0.7) * 12;
+    const alpha = 0.04 + Math.random() * 0.08;
+    ctx.strokeStyle = `rgba(30,15,5,${alpha})`;
+    ctx.lineWidth = 1 + Math.random() * 2;
+    ctx.beginPath();
+    ctx.moveTo(0, y);
+    for (let x = 0; x < w; x += 30) {
+      ctx.lineTo(x, y + Math.sin(x * 0.03 + i) * 5);
+    }
+    ctx.stroke();
+  }
+  // knots
+  for (let k = 0; k < 3; k++) {
+    const kx = 60 + Math.random() * (w-120);
+    const ky = 60 + Math.random() * (h-120);
+    const rg = ctx.createRadialGradient(kx, ky, 3, kx, ky, 22);
+    rg.addColorStop(0, 'rgba(40,20,8,0.5)');
+    rg.addColorStop(1, 'rgba(0,0,0,0)');
+    ctx.fillStyle = rg;
+    ctx.beginPath();
+    ctx.ellipse(kx, ky, 22, 14, Math.random(), 0, Math.PI*2);
+    ctx.fill();
+  }
+  const tex = new THREE.CanvasTexture(cv);
+  return tex;
+}
+
+// Board
+const woodTex = makeWoodTexture();
+const boardMat = new THREE.MeshStandardMaterial({
+  map: woodTex,
+  roughness: 0.65,
+  metalness: 0.05,
+  color: 0xffffff
+});
+
+// Board base
+const boardGeo = new THREE.BoxGeometry(13.5, 0.5, 4.5);
+const board = new THREE.Mesh(boardGeo, boardMat);
+board.position.y = -0.25;
+board.receiveShadow = true;
+board.castShadow = true;
+scene.add(board);
+
+// Board edges (beveled look)
+const edgeMat = new THREE.MeshStandardMaterial({ color: 0x3d2008, roughness: 0.8 });
+const edgeTop = new THREE.Mesh(new THREE.BoxGeometry(13.5, 0.08, 0.12), edgeMat);
+edgeTop.position.set(0, 0.04, -2.25);
+scene.add(edgeTop);
+const edgeBot = edgeTop.clone();
+edgeBot.position.z = 2.25;
+scene.add(edgeBot);
+const edgeL = new THREE.Mesh(new THREE.BoxGeometry(0.12, 0.08, 4.5), edgeMat);
+edgeL.position.set(-6.75, 0.04, 0);
+scene.add(edgeL);
+const edgeR = edgeL.clone();
+edgeR.position.x = 6.75;
+scene.add(edgeR);
+
+// Cup geometry helper
+function makeCup(x, z, isStore = false) {
+  const r = isStore ? 0.55 : 0.38;
+  const h = isStore ? 0.28 : 0.22;
+  // cup bowl (cylinder as well)
+  const geo = new THREE.CylinderGeometry(r * 0.7, r * 0.5, h, 24);
+  const mat = new THREE.MeshStandardMaterial({
+    color: 0x2a1408,
+    roughness: 0.7,
+    metalness: 0.1
+  });
+  const cup = new THREE.Mesh(geo, mat);
+  cup.position.set(x, h/2 - 0.05, z);
+  cup.receiveShadow = true;
+  scene.add(cup);
+
+  // Rim torus
+  const rimGeo = new THREE.TorusGeometry(r * 0.72, 0.04, 12, 32);
+  const rimMat = new THREE.MeshStandardMaterial({
+    color: 0xb8820a,
+    roughness: 0.3,
+    metalness: 0.7,
+    emissive: 0x3a2500,
+    emissiveIntensity: 0.3
+  });
+  const rim = new THREE.Mesh(rimGeo, rimMat);
+  rim.rotation.x = Math.PI / 2;
+  rim.position.set(x, h - 0.02, z);
+  scene.add(rim);
+
+  return { cup, rim, x, z, isStore, rimMat };
+}
+
+// Cup positions: 7 per row
+// P1 row (bottom, z=+1.2), P2 row (top, z=-1.2)
+// Stores at x = ±6.0
+const CUP_SPACING = 1.55;
+const ROW_Z = { p1: 1.1, p2: -1.1 };
+const CUP_START_X = -4.65; // leftmost cup x
+
+const cupMeshes = []; // index 0-13
+const storeMeshes = []; // [p1store, p2store]
+
+// P1 row: index 0-6, left to right
+for (let i = 0; i < 7; i++) {
+  const x = CUP_START_X + i * CUP_SPACING;
+  cupMeshes.push(makeCup(x, ROW_Z.p1));
+}
+// P2 row: index 7-13, left to right
+for (let i = 0; i < 7; i++) {
+  const x = CUP_START_X + i * CUP_SPACING;
+  cupMeshes.push(makeCup(x, ROW_Z.p2));
+}
+// Stores
+storeMeshes.push(makeCup(6.3, 0, true));  // P1 store (index 0 = right side)
+storeMeshes.push(makeCup(-6.3, 0, true)); // P2 store (index 1 = left side)
+
+// Cup hover spotlight
+const hoverLight = new THREE.SpotLight(0xffcc55, 0, 8, Math.PI/6, 0.5, 1);
+hoverLight.position.set(0, 3, 0);
+scene.add(hoverLight);
+scene.add(hoverLight.target);
+
+// ============================================================
+// SEEDS
+// ============================================================
+const seedGeo = new THREE.SphereGeometry(0.10, 10, 8);
+const seedMat = new THREE.MeshStandardMaterial({
+  color: 0xf5e8c8,
+  roughness: 0.45,
+  metalness: 0.05,
+  emissive: 0x3d2a10,
+  emissiveIntensity: 0.25
+});
+
+// We'll create seed meshes on demand, pool them
+const seedPool = [];
+const activeSeedsByGroup = new Array(16).fill(null).map(() => []); // 14 cups + 2 stores
+
+function getSeedMesh() {
+  if (seedPool.length > 0) return seedPool.pop();
+  const m = new THREE.Mesh(seedGeo, seedMat);
+  m.castShadow = true;
+  scene.add(m);
+  return m;
+}
+
+function returnSeedMesh(m) {
+  m.visible = false;
+  seedPool.push(m);
+}
+
+function getGroupPos(groupIndex) {
+  if (groupIndex < 14) {
+    const c = cupMeshes[groupIndex];
+    return new THREE.Vector3(c.x, 0.18, c.z);
+  } else if (groupIndex === 14) {
+    return new THREE.Vector3(storeMeshes[0].x, 0.25, storeMeshes[0].z);
+  } else {
+    return new THREE.Vector3(storeMeshes[1].x, 0.25, storeMeshes[1].z);
+  }
+}
+
+function placeSeedsInGroup(groupIndex, count) {
+  // Return old seeds
+  activeSeedsByGroup[groupIndex].forEach(m => returnSeedMesh(m));
+  activeSeedsByGroup[groupIndex] = [];
+
+  const center = getGroupPos(groupIndex);
+  const isStore = groupIndex >= 14;
+  const radius = isStore ? 0.45 : 0.28;
+
+  for (let i = 0; i < count; i++) {
+    const m = getSeedMesh();
+    const angle = Math.random() * Math.PI * 2;
+    const r = Math.random() * radius;
+    const layer = Math.floor(i / 8);
+    m.position.set(
+      center.x + Math.cos(angle) * r,
+      center.y + layer * 0.14 + Math.random() * 0.05,
+      center.z + Math.sin(angle) * r
+    );
+    m.rotation.set(Math.random(), Math.random(), Math.random());
+    m.visible = true;
+    activeSeedsByGroup[groupIndex].push(m);
+  }
+}
+
+function refreshAllSeeds(game) {
+  for (let i = 0; i < 14; i++) placeSeedsInGroup(i, game.cups[i]);
+  placeSeedsInGroup(14, game.stores[0]);
+  placeSeedsInGroup(15, game.stores[1]);
+}
+
+// ============================================================
+// SEED COUNT LABELS
+// ============================================================
+const labelEls = [];
+for (let i = 0; i < 16; i++) {
+  const el = document.createElement('div');
+  el.className = 'seed-label';
+  el.style.display = 'none';
+  document.getElementById('ui-overlay').appendChild(el);
+  labelEls.push(el);
+}
+
+function project3D(pos) {
+  const v = pos.clone().project(camera);
+  return {
+    x: (v.x * 0.5 + 0.5) * window.innerWidth,
+    y: (-v.y * 0.5 + 0.5) * window.innerHeight
+  };
+}
+
+function updateLabels(game) {
+  for (let i = 0; i < 14; i++) {
+    const count = game.cups[i];
+    const pos = getGroupPos(i);
+    const p = project3D(new THREE.Vector3(pos.x, pos.y + 0.6, pos.z));
+    const el = labelEls[i];
+    if (count > 0) {
+      el.style.display = 'block';
+      el.style.left = p.x + 'px';
+      el.style.top = p.y + 'px';
+      el.textContent = count;
+    } else {
+      el.style.display = 'none';
+    }
+  }
+  // Stores
+  [14, 15].forEach(i => {
+    const count = i === 14 ? game.stores[0] : game.stores[1];
+    const pos = getGroupPos(i);
+    const p = project3D(new THREE.Vector3(pos.x, pos.y + 0.7, pos.z));
+    const el = labelEls[i];
+    el.style.display = 'block';
+    el.style.left = p.x + 'px';
+    el.style.top = p.y + 'px';
+    el.textContent = count;
+  });
+
+  // Update store UI
+  document.getElementById('p1-store').textContent = game.stores[0];
+  document.getElementById('p2-store').textContent = game.stores[1];
+}
+
+// ============================================================
+// RAYCASTING / INTERACTION
+// ============================================================
+const raycaster = new THREE.Raycaster();
+const mouse = new THREE.Vector2();
+let hoveredCup = -1;
+
+const cupHitMeshes = cupMeshes.map((c, i) => {
+  const geo = new THREE.CylinderGeometry(0.45, 0.45, 0.3, 16);
+  const mat = new THREE.MeshBasicMaterial({ transparent: true, opacity: 0, depthWrite: false });
+  const m = new THREE.Mesh(geo, mat);
+  m.position.set(c.x, 0.15, c.z);
+  m.userData.cupIndex = i;
+  scene.add(m);
+  return m;
+});
+
+window.addEventListener('mousemove', (e) => {
+  mouse.x = (e.clientX / window.innerWidth) * 2 - 1;
+  mouse.y = -(e.clientY / window.innerHeight) * 2 + 1;
+  raycaster.setFromCamera(mouse, camera);
+  const hits = raycaster.intersectObjects(cupHitMeshes);
+  const prev = hoveredCup;
+  if (hits.length > 0) {
+    hoveredCup = hits[0].object.userData.cupIndex;
+  } else {
+    hoveredCup = -1;
+  }
+  if (hoveredCup !== prev) onHoverChange(prev, hoveredCup);
+});
+
+window.addEventListener('click', (e) => {
+  raycaster.setFromCamera(mouse, camera);
+  const hits = raycaster.intersectObjects(cupHitMeshes);
+  if (hits.length > 0) {
+    const idx = hits[0].object.userData.cupIndex;
+    onCupClick(idx);
+  }
+});
+
+// ============================================================
+// GAME STATE & UI
+// ============================================================
+const game = new PallangaGame();
+let animating = false;
+
+function showStatus(msg, duration = 2000) {
+  const el = document.getElementById('status-msg');
+  el.textContent = msg;
+  el.classList.add('visible');
+  clearTimeout(el._timer);
+  if (duration > 0) {
+    el._timer = setTimeout(() => el.classList.remove('visible'), duration);
+  }
+}
+
+function hideStatus() {
+  document.getElementById('status-msg').classList.remove('visible');
+}
+
+function updateTurnUI() {
+  const p1Active = game.currentPlayer === 1;
+  document.getElementById('p1-panel').classList.toggle('active', p1Active);
+  document.getElementById('p2-panel').classList.toggle('active', !p1Active);
+  document.getElementById('p1-dot').classList.toggle('active', p1Active);
+  document.getElementById('p2-dot').classList.toggle('active', !p1Active);
+  document.getElementById('instruction').style.opacity = p1Active && !animating ? '1' : '0';
+}
+
+function showThinking(show) {
+  document.getElementById('thinking').classList.toggle('visible', show);
+}
+
+function onHoverChange(prev, next) {
+  // Reset prev rim
+  if (prev >= 0 && prev < 14) {
+    const { rimMat } = cupMeshes[prev];
+    gsap.to(rimMat.emissive, { r: 0.23, g: 0.145, b: 0, duration: 0.3 });
+    gsap.to(rimMat, { emissiveIntensity: 0.3, duration: 0.3 });
+  }
+  if (next >= 0 && next < 14) {
+    const playerRow = game.currentPlayer === 1 ? P1_ROW : P2_ROW;
+    if (playerRow.includes(next) && game.cups[next] > 0 && !animating && game.currentPlayer === 1) {
+      const { rimMat, x, z } = cupMeshes[next];
+      gsap.to(rimMat.emissive, { r: 1, g: 0.75, b: 0.1, duration: 0.25 });
+      gsap.to(rimMat, { emissiveIntensity: 0.8, duration: 0.25 });
+      hoverLight.position.set(x, 3, z);
+      hoverLight.target.position.set(x, 0, z);
+      hoverLight.intensity = 3;
+    }
+  } else {
+    hoverLight.intensity = 0;
+  }
+}
+
+// ============================================================
+// ANIMATION: SOW
+// ============================================================
+function animateSow(events, player, onDone) {
+  animating = true;
+  updateTurnUI();
+
+
+  // Tracks "hand" position between seed drops for arc animation
+  let lastSowPos = new THREE.Vector3(0, 1.5, 0);
+
+  // Animate pickup first
+  function doPickup(pickupEvent, next) {
+    const cupIdx = pickupEvent.cup;
+    AudioEngine.rattle();
+    // Lift all seeds in this cup up
+    const group = activeSeedsByGroup[cupIdx];
+    const cupPos = getGroupPos(cupIdx);
+
+    // Reset hand position to above this cup
+    lastSowPos.set(cupPos.x, 1.5, cupPos.z);
+
+    if (group.length === 0) {
+      next();
+      return;
+    }
+
+    const tl = gsap.timeline({ onComplete: next });
+    group.forEach((m, i) => {
+      tl.to(m.position, { y: m.position.y + 1.5, duration: 0.22, ease: 'power2.out' }, i * 0.015);
+    });
+    // Clear them as picked up
+    tl.call(() => {
+      group.forEach(m => returnSeedMesh(m));
+      activeSeedsByGroup[cupIdx] = [];
+    });
+  }
+
+  // Animate one sow (one seed flying to target cup) — beautiful arc
+  function doOneSow(targetCup, onLand) {
+    const target = getGroupPos(targetCup);
+    const m = getSeedMesh();
+
+    // Start from last sow position (hand position)
+    m.position.set(lastSowPos.x, lastSowPos.y, lastSowPos.z);
+    m.visible = true;
+
+    const landX = target.x + (Math.random()-0.5)*0.20;
+    const landZ = target.z + (Math.random()-0.5)*0.20;
+    const landY = target.y + Math.min(activeSeedsByGroup[targetCup].length, 12) * 0.11;
+
+    // Arc peak: halfway between start and land, elevated
+    const peakY = Math.max(lastSowPos.y, landY) + 1.2 + Math.random() * 0.5;
+    const peakX = (lastSowPos.x + landX) * 0.5 + (Math.random()-0.5)*0.3;
+    const peakZ = (lastSowPos.z + landZ) * 0.5 + (Math.random()-0.5)*0.3;
+
+    const tl = gsap.timeline({ onComplete: () => {
+      activeSeedsByGroup[targetCup].push(m);
+      // Update lastSowPos for next seed
+      lastSowPos.set(landX, landY + 0.3, landZ);
+      const pitch = 280 + Math.random() * 60;
+      AudioEngine.plop(pitch);
+      if (onLand) onLand();
+    }});
+
+    // Arc: rise to peak then drop to land
+    tl.to(m.position, { x: peakX, y: peakY, z: peakZ, duration: 0.16, ease: 'power1.out' });
+    tl.to(m.position, { x: landX, y: landY + 0.15, z: landZ, duration: 0.14, ease: 'power2.in' });
+    tl.to(m.position, { y: landY, duration: 0.06, ease: 'bounce.out' });
+    return tl;
+  }
+
+  // Process events sequentially
+  function processEvents(idx) {
+    if (idx >= events.length) {
+      // Done animating, refresh seeds to final state
+      refreshAllSeeds(game);
+      animating = false;
+      updateTurnUI();
+      onDone();
+      return;
+    }
+    const ev = events[idx];
+
+    if (ev.type === 'pickup') {
+      doPickup(ev, () => processEvents(idx + 1));
+    } else if (ev.type === 'sow') {
+      doOneSow(ev.cup, () => processEvents(idx + 1));
+    } else if (ev.type === 'capture') {
+      // Fly captured seeds to store
+      const storeIdx = player === 1 ? 14 : 15;
+      const storePos = getGroupPos(storeIdx);
+      AudioEngine.capture();
+
+      // Clear source cup seeds
+      activeSeedsByGroup[ev.from].forEach(m => returnSeedMesh(m));
+      activeSeedsByGroup[ev.from] = [];
+
+      let done = 0;
+      const count = Math.min(ev.seeds, 20); // cap visual seeds
+      if (count === 0) { processEvents(idx + 1); return; }
+
+      for (let i = 0; i < count; i++) {
+        setTimeout(() => {
+          const m = getSeedMesh();
+          const from = getGroupPos(ev.from);
+          m.position.set(from.x, 0.3, from.z);
+          m.visible = true;
+          gsap.to(m.position, {
+            x: storePos.x + (Math.random()-0.5)*0.35,
+            y: 1.8,
+            z: storePos.z + (Math.random()-0.5)*0.35,
+            duration: 0.3, ease: 'power2.out'
+          });
+          gsap.to(m.position, {
+            y: storePos.y + 0.2,
+            duration: 0.25, ease: 'power2.in', delay: 0.3,
+            onComplete: () => {
+              returnSeedMesh(m);
+              done++;
+              if (done === count) processEvents(idx + 1);
+            }
+          });
+        }, i * 55);
+      }
+    } else if (ev.type === 'noCapture') {
+      AudioEngine.noCapture();
+      setTimeout(() => processEvents(idx + 1), 200);
+    } else if (ev.type === 'finalState') {
+      refreshAllSeeds(game);
+      processEvents(idx + 1);
+    } else {
+      processEvents(idx + 1);
+    }
+  }
+
+  processEvents(0);
+}
+
+// ============================================================
+// TURN FLOW
+// ============================================================
+function onCupClick(cupIndex) {
+  if (animating || game.gameOver) return;
+  if (game.currentPlayer !== 1) return; // only P1 can click
+  const playerRow = P1_ROW;
+  if (!playerRow.includes(cupIndex)) {
+    showStatus('Pick a cup from your row (bottom)', 1500);
+    return;
+  }
+  if (game.cups[cupIndex] === 0) {
+    showStatus('That cup is empty!', 1200);
+    return;
+  }
+
+  AudioEngine.rattle();
+  const events = game.computeSow(cupIndex, 1);
+  game.applyEvents(events, 1);
+  game.switchTurn();
+
+  animateSow(events, 1, () => {
+    updateLabels(game);
+    updateTurnUI();
+    if (game.gameOver) { endGame(); return; }
+    if (game.currentPlayer === 2) aiTurn();
+  });
+}
+
+function aiTurn() {
+  if (game.gameOver) return;
+  showThinking(true);
+  setTimeout(() => {
+    showThinking(false);
+    if (game.gameOver) return;
+    const cup = game.aiMove();
+    if (cup === null) {
+      game.gameOver = true;
+      endGame();
+      return;
+    }
+    const events = game.computeSow(cup, 2);
+    game.applyEvents(events, 2);
+    game.switchTurn();
+
+    animateSow(events, 2, () => {
+      updateLabels(game);
+      updateTurnUI();
+      if (game.gameOver) { endGame(); return; }
+      // Back to P1
+    });
+  }, 500 + Math.random() * 300);
+}
+
+function endGame() {
+  AudioEngine.win();
+  const p1 = game.stores[0];
+  const p2 = game.stores[1];
+  const winner = p1 > p2 ? 'Player 1 (You)' : p2 > p1 ? 'Player 2 (AI)' : null;
+
+  document.getElementById('win-p1-score').textContent = p1;
+  document.getElementById('win-p2-score').textContent = p2;
+  document.getElementById('win-title').textContent = winner ? (winner === 'Player 1 (You)' ? '🎉 You Win!' : '🤖 AI Wins!') : '🤝 Draw!';
+  document.getElementById('win-sub').textContent = winner ? `${winner} wins with ${Math.max(p1,p2)} seeds` : 'Both players tied!';
+
+  setTimeout(() => {
+    document.getElementById('win-screen').classList.add('visible');
+  }, 800);
+}
+
+document.getElementById('play-again-btn').addEventListener('click', () => {
+  document.getElementById('win-screen').classList.remove('visible');
+  game.reset();
+  // Return all active seeds
+  for (let i = 0; i < 16; i++) {
+    activeSeedsByGroup[i].forEach(m => returnSeedMesh(m));
+    activeSeedsByGroup[i] = [];
+  }
+  refreshAllSeeds(game);
+  updateLabels(game);
+  updateTurnUI();
+  animating = false;
+});
+
+// ============================================================
+// RENDER LOOP
+// ============================================================
+function animate() {
+  requestAnimationFrame(animate);
+  flickerCandle();
+  renderer.render(scene, camera);
+  updateLabels(game);
+}
+
+// Init
+refreshAllSeeds(game);
+updateLabels(game);
+updateTurnUI();
+animate();
+
+window.addEventListener('resize', () => {
+  camera.aspect = window.innerWidth / window.innerHeight;
+  camera.updateProjectionMatrix();
+  renderer.setSize(window.innerWidth, window.innerHeight);
+});
+</script>
+</body>
+</html>
