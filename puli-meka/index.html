@@ -1,0 +1,1266 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Puli Meka — Tigers &amp; Goats</title>
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body {
+    background: #2a1208;
+    display: flex; flex-direction: column; align-items: center; justify-content: center;
+    min-height: 100vh;
+    font-family: 'Georgia', serif;
+    overflow: hidden;
+    user-select: none;
+  }
+  canvas { display: block; cursor: pointer; }
+  #ui {
+    position: fixed; top: 0; left: 0; width: 100%; height: 100%;
+    pointer-events: none;
+    z-index: 10;
+  }
+  #menu {
+    position: fixed; top: 0; left: 0; width: 100%; height: 100%;
+    background: linear-gradient(160deg, #3d1a06 0%, #1a0a02 60%, #2e1208 100%);
+    display: flex; flex-direction: column; align-items: center; justify-content: center;
+    z-index: 100;
+    color: #f4d4a0;
+  }
+  #menu h1 {
+    font-size: clamp(2rem, 5vw, 3.5rem);
+    color: #f4a030;
+    text-shadow: 0 0 30px #f4601088, 2px 2px 0 #2a0a00;
+    margin-bottom: 0.2em;
+    letter-spacing: 0.05em;
+  }
+  #menu .subtitle {
+    font-size: clamp(0.9rem, 2vw, 1.2rem);
+    color: #c8924a;
+    margin-bottom: 2em;
+    letter-spacing: 0.1em;
+  }
+  .rules-box {
+    background: #2a1208cc;
+    border: 1px solid #c8924a55;
+    border-radius: 12px;
+    padding: 1.2em 2em;
+    max-width: 560px;
+    margin-bottom: 2em;
+    font-size: clamp(0.75rem, 1.5vw, 0.9rem);
+    line-height: 1.7;
+    color: #e8c888;
+  }
+  .rules-box h3 { color: #f4a030; margin-bottom: 0.5em; font-size: 1em; }
+  .rules-box .tiger-c { color: #f47010; }
+  .rules-box .goat-c { color: #90d870; }
+  .btn-group { display: flex; flex-direction: column; gap: 0.8em; align-items: center; }
+  .menu-btn {
+    pointer-events: all;
+    background: linear-gradient(135deg, #c05010, #a03008);
+    border: 2px solid #f4a030;
+    color: #fff8e8;
+    font-family: 'Georgia', serif;
+    font-size: clamp(0.9rem, 2vw, 1.1rem);
+    padding: 0.7em 2.5em;
+    border-radius: 8px;
+    cursor: pointer;
+    letter-spacing: 0.05em;
+    transition: all 0.2s;
+    text-shadow: 1px 1px 2px #00000088;
+    min-width: 240px;
+    text-align: center;
+  }
+  .menu-btn:hover {
+    background: linear-gradient(135deg, #e06820, #c04010);
+    border-color: #ffcc44;
+    transform: scale(1.04);
+    box-shadow: 0 0 20px #f4601055;
+  }
+  #hud {
+    position: fixed; top: 0; left: 0; width: 100%; z-index: 20;
+    pointer-events: none;
+    display: none;
+  }
+  #hud-inner {
+    display: flex; justify-content: space-between; align-items: flex-start;
+    padding: 10px 16px;
+    background: linear-gradient(to bottom, #1a0a0299, transparent);
+  }
+  .hud-panel {
+    background: #2a1208cc;
+    border: 1px solid #c8924a55;
+    border-radius: 10px;
+    padding: 8px 14px;
+    color: #f4d4a0;
+    font-size: 0.8rem;
+    min-width: 130px;
+    backdrop-filter: blur(4px);
+  }
+  .hud-panel h4 { font-size: 0.75rem; color: #c8924a; margin-bottom: 4px; }
+  .hud-center {
+    text-align: center;
+    color: #f4d4a0;
+    font-size: 0.85rem;
+  }
+  .hud-center .phase-label {
+    background: #2a1208cc;
+    border: 1px solid #c8924a55;
+    border-radius: 8px;
+    padding: 6px 16px;
+    margin-bottom: 4px;
+    font-size: 0.8rem;
+    color: #e8c888;
+  }
+  .hud-center .turn-label {
+    font-size: 0.9rem;
+    font-weight: bold;
+    padding: 4px 14px;
+    border-radius: 6px;
+    display: inline-block;
+  }
+  .turn-tiger { background: #c0400888; color: #ffaa44; border: 1px solid #f47010; }
+  .turn-goat  { background: #20601888; color: #90e860; border: 1px solid #60c040; }
+  #back-btn {
+    position: fixed; bottom: 14px; left: 14px; z-index: 50;
+    pointer-events: all;
+    background: #2a1208cc;
+    border: 1px solid #c8924a55;
+    color: #c8924a;
+    font-family: 'Georgia', serif;
+    font-size: 0.78rem;
+    padding: 6px 14px;
+    border-radius: 7px;
+    cursor: pointer;
+    transition: all 0.2s;
+    display: none;
+  }
+  #back-btn:hover { background: #3a2018cc; color: #f4a030; }
+  #win-screen {
+    position: fixed; top: 0; left: 0; width: 100%; height: 100%;
+    display: none; flex-direction: column; align-items: center; justify-content: center;
+    z-index: 200;
+    background: #00000099;
+  }
+  #win-screen .win-box {
+    background: linear-gradient(135deg, #3d1a06, #1a0a02);
+    border: 2px solid #c8924a;
+    border-radius: 18px;
+    padding: 2.5em 3.5em;
+    text-align: center;
+    color: #f4d4a0;
+    box-shadow: 0 0 60px #f4601044;
+  }
+  #win-screen h2 { font-size: 2.2rem; margin-bottom: 0.4em; }
+  #win-screen p { font-size: 1rem; color: #c8924a; margin-bottom: 1.5em; }
+  #win-screen .play-again {
+    pointer-events: all;
+    background: linear-gradient(135deg, #c05010, #a03008);
+    border: 2px solid #f4a030;
+    color: #fff8e8;
+    font-family: 'Georgia', serif;
+    font-size: 1rem;
+    padding: 0.6em 2em;
+    border-radius: 8px;
+    cursor: pointer;
+    margin: 0 8px;
+    transition: all 0.2s;
+  }
+  #win-screen .play-again:hover { transform: scale(1.05); box-shadow: 0 0 16px #f4601055; }
+</style>
+</head>
+<body>
+
+<!-- Menu -->
+<div id="menu">
+  <h1>🐯 Puli Meka 🐐</h1>
+  <div class="subtitle">ఆడు పులి ఆట — Tigers &amp; Goats</div>
+  <div class="rules-box">
+    <h3>How to Play</h3>
+    <span class="tiger-c">Tigers (3)</span> start at three corners. <span class="goat-c">Goats (15)</span> enter one per turn.<br>
+    <strong>Phase 1:</strong> Goats place on empty nodes. Tigers move or capture.<br>
+    <strong>Phase 2:</strong> Both sides move. Tigers jump over adjacent goats to capture them.<br>
+    <span class="tiger-c">Tigers win:</span> capture 5 goats. &nbsp;
+    <span class="goat-c">Goats win:</span> trap all tigers with no moves.
+  </div>
+  <div class="btn-group">
+    <button class="menu-btn" onclick="startGame('pvp')">🤝 Player vs Player</button>
+    <button class="menu-btn" onclick="startGame('pva-goat')">🐐 Play as Tiger (vs Goat AI)</button>
+    <button class="menu-btn" onclick="startGame('pva-tiger')">🐯 Play as Goat (vs Tiger AI)</button>
+  </div>
+</div>
+
+<!-- HUD -->
+<div id="hud">
+  <div id="hud-inner">
+    <div class="hud-panel" id="tiger-hud">
+      <h4>🐯 Tigers</h4>
+      <div id="tiger-info">Captured: 0/5</div>
+    </div>
+    <div class="hud-center">
+      <div class="phase-label" id="phase-label">Phase 1 — Place Goats</div>
+      <div class="turn-label turn-tiger" id="turn-label">Tiger's Turn</div>
+    </div>
+    <div class="hud-panel" id="goat-hud">
+      <h4>🐐 Goats</h4>
+      <div id="goat-info">Placed: 0/15</div>
+    </div>
+  </div>
+</div>
+
+<!-- Back button -->
+<button id="back-btn" onclick="window.location.href='../index.html'">← Back to Menu</button>
+
+<!-- Win screen -->
+<div id="win-screen">
+  <div class="win-box">
+    <h2 id="win-title"></h2>
+    <p id="win-sub"></p>
+    <button class="play-again" onclick="showMenu()">Main Menu</button>
+    <button class="play-again" onclick="startGame(currentMode)">Play Again</button>
+  </div>
+</div>
+
+<canvas id="c"></canvas>
+
+<script>
+// ─── Constants & State ───────────────────────────────────────────────────────
+const ROWS = 5, COLS = 5, N = 25;
+const TIGER_WIN_CAPTURES = 5;
+const TOTAL_GOATS = 15;
+
+let canvas, ctx, W, H, CELL, OX, OY;
+let currentMode = 'pvp';
+let gameState = null;
+let animQueue = [];
+let rafId = null;
+let audioCtx = null;
+
+// ─── Audio ───────────────────────────────────────────────────────────────────
+function getAudio() {
+  if (!audioCtx) audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+  return audioCtx;
+}
+function playTone(type, freq, dur, vol=0.18, freqEnd=null) {
+  try {
+    const ac = getAudio();
+    const o = ac.createOscillator();
+    const g = ac.createGain();
+    o.connect(g); g.connect(ac.destination);
+    o.type = type; o.frequency.value = freq;
+    if (freqEnd !== null) o.frequency.linearRampToValueAtTime(freqEnd, ac.currentTime + dur);
+    g.gain.setValueAtTime(vol, ac.currentTime);
+    g.gain.exponentialRampToValueAtTime(0.001, ac.currentTime + dur);
+    o.start(ac.currentTime); o.stop(ac.currentTime + dur);
+  } catch(e) {}
+}
+function sfxGoatPlace()   { playTone('sine', 220, 0.1, 0.15); }
+function sfxTigerMove()   { playTone('sine', 150, 0.12, 0.2); }
+function sfxCapture() {
+  playTone('sawtooth', 200, 0.3, 0.25, 80);
+  setTimeout(() => playTone('sine', 400, 0.15, 0.1, 300), 80);
+}
+function sfxInvalid()     { playTone('sine', 100, 0.05, 0.1); }
+function sfxTigersWin() {
+  playTone('sawtooth', 80, 0.8, 0.3, 40);
+  setTimeout(() => playTone('sawtooth', 120, 0.5, 0.2), 200);
+}
+function sfxGoatsWin() {
+  const notes = [262, 294, 330, 392, 440];
+  notes.forEach((f, i) => setTimeout(() => playTone('sine', f, 0.2, 0.18), i * 120));
+}
+
+// ─── Board geometry ──────────────────────────────────────────────────────────
+function resize() {
+  const vw = window.innerWidth, vh = window.innerHeight;
+  const size = Math.min(vw, vh) * 0.82;
+  canvas.width = vw; canvas.height = vh;
+  W = vw; H = vh;
+  CELL = size / 4;
+  OX = (vw - size) / 2;
+  OY = (vh - size) / 2;
+}
+function nodeXY(r, c) {
+  return { x: OX + c * CELL, y: OY + r * CELL };
+}
+function nodeIdx(r, c) { return r * COLS + c; }
+function idxRC(i) { return { r: Math.floor(i / COLS), c: i % COLS }; }
+
+// All edges: orthogonal + diagonal
+function buildEdges() {
+  const edges = [];
+  const adj = Array.from({length: N}, () => []);
+  for (let r = 0; r < ROWS; r++) {
+    for (let c = 0; c < COLS; c++) {
+      for (let dr = -1; dr <= 1; dr++) {
+        for (let dc = -1; dc <= 1; dc++) {
+          if (dr === 0 && dc === 0) continue;
+          const nr = r+dr, nc = c+dc;
+          if (nr >= 0 && nr < ROWS && nc >= 0 && nc < COLS) {
+            const a = nodeIdx(r,c), b = nodeIdx(nr,nc);
+            adj[a].push(b);
+            if (a < b) edges.push([a, b]);
+          }
+        }
+      }
+    }
+  }
+  return { edges, adj };
+}
+const { edges, adj } = buildEdges();
+
+// ─── Game Logic ───────────────────────────────────────────────────────────────
+function initGame(mode) {
+  currentMode = mode;
+  gameState = {
+    mode,
+    phase: 1,          // 1 = placement, 2 = movement
+    turn: 'goat',      // goat places first in phase 1 (some rulesets tiger first — we do goat first)
+    board: new Array(N).fill(null), // null | 'tiger' | 'goat'
+    tigers: [nodeIdx(0,0), nodeIdx(0,4), nodeIdx(4,4)], // three corners
+    goats: [],          // indices of goats on board
+    goatsPlaced: 0,
+    goatsCaptured: 0,
+    selected: null,     // selected tiger index (for tiger turn in phase 2)
+    validMoves: [],
+    winner: null,
+    particles: [],
+    animations: [],     // { type, ... }
+    aiThinking: false,
+    pulseT: 0,
+  };
+  const gs = gameState;
+  // Place tigers on board
+  gs.tigers.forEach(i => gs.board[i] = 'tiger');
+}
+
+function getTigerMoves(gs, tigerIdx) {
+  // Returns { moves: [idx], captures: [{land, captured}] }
+  const moves = [], captures = [];
+  const rc = idxRC(tigerIdx);
+  adj[tigerIdx].forEach(nb => {
+    if (gs.board[nb] === null) {
+      moves.push(nb);
+    } else if (gs.board[nb] === 'goat') {
+      // Check jump
+      const nrc = idxRC(nb);
+      const dr = nrc.r - rc.r, dc = nrc.c - rc.c;
+      const lr = nrc.r + dr, lc = nrc.c + dc;
+      if (lr >= 0 && lr < ROWS && lc >= 0 && lc < COLS) {
+        const land = nodeIdx(lr, lc);
+        if (gs.board[land] === null) {
+          captures.push({ land, captured: nb });
+        }
+      }
+    }
+  });
+  return { moves, captures };
+}
+
+function getGoatMoves(gs, goatIdx) {
+  return adj[goatIdx].filter(nb => gs.board[nb] === null);
+}
+
+function allTigerMoves(gs) {
+  let all = [];
+  gs.tigers.forEach(ti => {
+    const { moves, captures } = getTigerMoves(gs, ti);
+    captures.forEach(c => all.push({ tiger: ti, type: 'capture', ...c }));
+    moves.forEach(m => all.push({ tiger: ti, type: 'move', land: m }));
+  });
+  return all;
+}
+
+function checkWin(gs) {
+  if (gs.goatsCaptured >= TIGER_WIN_CAPTURES) return 'tiger';
+  // Check if all tigers are blocked
+  const tigerBlocked = gs.tigers.every(ti => {
+    const { moves, captures } = getTigerMoves(gs, ti);
+    return moves.length === 0 && captures.length === 0;
+  });
+  if (tigerBlocked && gs.phase === 2) return 'goat';
+  // During phase 1 goats can still block
+  if (tigerBlocked && gs.phase === 1 && gs.goatsPlaced >= 3) return 'goat';
+  return null;
+}
+
+function applyTigerMove(gs, tigerIdx, land, captured=null) {
+  gs.board[tigerIdx] = null;
+  gs.board[land] = 'tiger';
+  const ti = gs.tigers.indexOf(tigerIdx);
+  gs.tigers[ti] = land;
+  if (captured !== null) {
+    gs.board[captured] = null;
+    gs.goats = gs.goats.filter(g => g !== captured);
+    gs.goatsCaptured++;
+  }
+}
+
+function applyGoatMove(gs, from, to) {
+  gs.board[from] = null;
+  gs.board[to] = 'goat';
+  const gi = gs.goats.indexOf(from);
+  gs.goats[gi] = to;
+}
+
+function applyGoatPlace(gs, idx) {
+  gs.board[idx] = 'goat';
+  gs.goats.push(idx);
+  gs.goatsPlaced++;
+  if (gs.goatsPlaced >= TOTAL_GOATS) {
+    // Transition to phase 2 after this turn
+    gs._endPhase1 = true;
+  }
+}
+
+function nextTurn(gs) {
+  if (gs._endPhase1) {
+    gs.phase = 2;
+    gs._endPhase1 = false;
+  }
+  gs.turn = gs.turn === 'goat' ? 'tiger' : 'goat';
+  gs.selected = null;
+  gs.validMoves = [];
+  updateHUD();
+}
+
+// ─── AI ──────────────────────────────────────────────────────────────────────
+function aiGoatMove(gs) {
+  // Phase 1: place near tigers or blocking positions
+  if (gs.phase === 1) {
+    // Score each empty node
+    let best = null, bestScore = -Infinity;
+    for (let i = 0; i < N; i++) {
+      if (gs.board[i] !== null) continue;
+      let score = 0;
+      // Near tigers
+      gs.tigers.forEach(ti => {
+        if (adj[ti].includes(i)) score += 5;
+        // Check if placing here blocks a tiger capture
+        const rc1 = idxRC(ti), rc2 = idxRC(i);
+        const dr = rc2.r - rc1.r, dc = rc2.c - rc1.c;
+        // If this node is between tiger and an escape
+        score += 2;
+      });
+      // Avoid being capturable
+      gs.tigers.forEach(ti => {
+        const { captures } = getTigerMoves(gs, ti);
+        captures.forEach(cap => {
+          if (cap.captured === i) score -= 20; // already a goat there - n/a
+        });
+        // Check if placing here would be immediately captured
+        adj[ti].forEach(nb => {
+          if (nb === i && gs.board[nb] === null) {
+            const rc1 = idxRC(ti), rcN = idxRC(i);
+            const dr = rcN.r - rc1.r, dc = rcN.c - rc1.c;
+            const lr = rcN.r + dr, lc = rcN.c + dc;
+            if (lr >= 0 && lr < ROWS && lc >= 0 && lc < COLS) {
+              const land = nodeIdx(lr, lc);
+              if (gs.board[land] === null) score -= 15;
+            }
+          }
+        });
+      });
+      score += Math.random() * 2;
+      if (score > bestScore) { bestScore = score; best = i; }
+    }
+    return { type: 'place', idx: best };
+  }
+  // Phase 2: move goat to tighten blockade
+  let bestMove = null, bestScore = -Infinity;
+  gs.goats.forEach(gi => {
+    const moves = getGoatMoves(gs, gi);
+    moves.forEach(m => {
+      let score = 0;
+      gs.tigers.forEach(ti => {
+        const d1 = dist(gi, ti), d2 = dist(m, ti);
+        if (d2 < d1) score += 3;
+        if (adj[ti].includes(m)) score += 5;
+      });
+      score += Math.random();
+      if (score > bestScore) { bestScore = score; bestMove = { from: gi, to: m }; }
+    });
+  });
+  if (!bestMove) return null;
+  return { type: 'move', ...bestMove };
+}
+
+function aiTigerMove(gs) {
+  const allMoves = allTigerMoves(gs);
+  if (allMoves.length === 0) return null;
+  // Prefer captures
+  const captures = allMoves.filter(m => m.type === 'capture');
+  if (captures.length > 0) {
+    // Pick capture that puts tiger in best next position
+    let best = captures[0], bestScore = -Infinity;
+    captures.forEach(cap => {
+      let score = 10;
+      // Can we capture again next turn?
+      const simGs = simApplyTiger(gs, cap);
+      const { captures: nextCaps } = getTigerMoves(simGs, cap.land);
+      score += nextCaps.length * 5;
+      score += Math.random();
+      if (score > bestScore) { bestScore = score; best = cap; }
+    });
+    return best;
+  }
+  // Move toward largest goat cluster
+  let best = allMoves[0], bestScore = -Infinity;
+  allMoves.forEach(m => {
+    let score = 0;
+    // Count goats adjacent to landing
+    adj[m.land].forEach(nb => { if (gs.board[nb] === 'goat') score += 2; });
+    // Check if landing enables capture
+    const simGs = simApplyTiger(gs, m);
+    const { captures: nextCaps } = getTigerMoves(simGs, m.land);
+    score += nextCaps.length * 8;
+    // Prefer center
+    const rc = idxRC(m.land);
+    score -= Math.abs(rc.r - 2) + Math.abs(rc.c - 2);
+    score += Math.random() * 0.5;
+    if (score > bestScore) { bestScore = score; best = m; }
+  });
+  return best;
+}
+
+function simApplyTiger(gs, move) {
+  const clone = {
+    board: [...gs.board],
+    tigers: [...gs.tigers],
+    goats: [...gs.goats],
+    goatsCaptured: gs.goatsCaptured,
+  };
+  clone.board[move.tiger] = null;
+  clone.board[move.land] = 'tiger';
+  const ti = clone.tigers.indexOf(move.tiger);
+  clone.tigers[ti] = move.land;
+  if (move.type === 'capture') {
+    clone.board[move.captured] = null;
+    clone.goats = clone.goats.filter(g => g !== move.captured);
+    clone.goatsCaptured++;
+  }
+  return clone;
+}
+
+function dist(a, b) {
+  const ra = idxRC(a), rb = idxRC(b);
+  return Math.max(Math.abs(ra.r-rb.r), Math.abs(ra.c-rb.c));
+}
+
+// ─── UI & HUD ─────────────────────────────────────────────────────────────────
+function updateHUD() {
+  const gs = gameState;
+  if (!gs) return;
+  document.getElementById('tiger-info').textContent = `Captured: ${gs.goatsCaptured}/${TIGER_WIN_CAPTURES}`;
+  document.getElementById('goat-info').textContent = `Placed: ${gs.goatsPlaced}/${TOTAL_GOATS} | On board: ${gs.goats.length}`;
+  document.getElementById('phase-label').textContent =
+    gs.phase === 1 ? 'Phase 1 — Place Goats' : 'Phase 2 — Movement';
+  const tl = document.getElementById('turn-label');
+  if (gs.turn === 'tiger') {
+    tl.textContent = "🐯 Tiger's Turn"; tl.className = 'turn-label turn-tiger';
+  } else {
+    tl.textContent = "🐐 Goat's Turn"; tl.className = 'turn-label turn-goat';
+  }
+}
+
+function showMenu() {
+  document.getElementById('menu').style.display = 'flex';
+  document.getElementById('hud').style.display = 'none';
+  document.getElementById('back-btn').style.display = 'none';
+  document.getElementById('win-screen').style.display = 'none';
+  gameState = null;
+}
+
+function startGame(mode) {
+  document.getElementById('menu').style.display = 'none';
+  document.getElementById('hud').style.display = 'block';
+  document.getElementById('back-btn').style.display = 'block';
+  document.getElementById('win-screen').style.display = 'none';
+  initGame(mode);
+  updateHUD();
+  scheduleAI();
+}
+
+function showWin(winner) {
+  const ws = document.getElementById('win-screen');
+  ws.style.display = 'flex';
+  const title = document.getElementById('win-title');
+  const sub = document.getElementById('win-sub');
+  if (winner === 'tiger') {
+    title.textContent = '🐯 Tigers Devoured the Herd!';
+    sub.textContent = 'The tigers proved too fierce. Better luck next time, goats!';
+    sfxTigersWin();
+    spawnWinParticles('tiger');
+  } else {
+    title.textContent = '🐐 Goats Outsmarted the Tigers!';
+    sub.textContent = 'Brilliant defensive play! The tigers are trapped!';
+    sfxGoatsWin();
+    spawnWinParticles('goat');
+  }
+}
+
+// ─── Particles ───────────────────────────────────────────────────────────────
+function spawnWinParticles(winner) {
+  if (!gameState) return;
+  const gs = gameState;
+  const sources = winner === 'tiger' ? gs.tigers : gs.goats;
+  sources.forEach(idx => {
+    const rc = idxRC(idx);
+    const pos = nodeXY(rc.r, rc.c);
+    for (let i = 0; i < 18; i++) {
+      gs.particles.push({
+        x: pos.x, y: pos.y,
+        vx: (Math.random()-0.5)*8,
+        vy: (Math.random()-0.5)*8,
+        life: 1,
+        color: winner === 'tiger'
+          ? `hsl(${30+Math.random()*30},90%,60%)`
+          : `hsl(${100+Math.random()*40},80%,55%)`,
+        r: 3+Math.random()*4,
+      });
+    }
+  });
+}
+
+// ─── Drawing ─────────────────────────────────────────────────────────────────
+let bgCanvas = null;
+function buildBg() {
+  bgCanvas = document.createElement('canvas');
+  bgCanvas.width = W; bgCanvas.height = H;
+  const bc = bgCanvas.getContext('2d');
+  const grad = bc.createRadialGradient(W/2, H/2, 0, W/2, H/2, Math.max(W,H)*0.7);
+  grad.addColorStop(0, '#4a2010');
+  grad.addColorStop(0.6, '#2e1208');
+  grad.addColorStop(1, '#1a0802');
+  bc.fillStyle = grad;
+  bc.fillRect(0, 0, W, H);
+  for (let i = 0; i < 800; i++) {
+    const x = Math.random() * W, y = Math.random() * H;
+    const v = Math.random();
+    bc.fillStyle = `rgba(${180+v*40},${100+v*30},${20+v*10},${0.03+Math.random()*0.04})`;
+    bc.fillRect(x, y, 2, 2);
+  }
+}
+function drawBackground() {
+  if (!bgCanvas || bgCanvas.width !== W || bgCanvas.height !== H) buildBg();
+  ctx.drawImage(bgCanvas, 0, 0);
+}
+
+let boardCanvas = null;
+function buildBoardCanvas() {
+  boardCanvas = document.createElement('canvas');
+  boardCanvas.width = W; boardCanvas.height = H;
+  const bc = boardCanvas.getContext('2d');
+
+  // Pre-compute slight jitter for hand-drawn feel
+  const jitter = edges.map(() => [
+    (Math.random()-0.5)*1.2, (Math.random()-0.5)*1.2,
+    (Math.random()-0.5)*1.2, (Math.random()-0.5)*1.2
+  ]);
+
+  // Draw edges
+  edges.forEach(([a, b], i) => {
+    const ra = idxRC(a), rb = idxRC(b);
+    const pa = nodeXY(ra.r, ra.c), pb = nodeXY(rb.r, rb.c);
+    const j = jitter[i];
+    bc.save();
+    bc.strokeStyle = '#d4a458aa';
+    bc.lineWidth = 1.8;
+    bc.lineCap = 'round';
+    bc.beginPath();
+    bc.moveTo(pa.x + j[0], pa.y + j[1]);
+    bc.lineTo(pb.x + j[2], pb.y + j[3]);
+    bc.stroke();
+    bc.restore();
+  });
+
+  // Draw nodes
+  for (let r = 0; r < ROWS; r++) {
+    for (let c = 0; c < COLS; c++) {
+      const idx = nodeIdx(r, c);
+      const pos = nodeXY(r, c);
+      const isTigerStart = [nodeIdx(0,0), nodeIdx(0,4), nodeIdx(4,4)].includes(idx);
+
+      bc.save();
+      bc.beginPath();
+      bc.arc(pos.x, pos.y, 7, 0, Math.PI*2);
+      bc.fillStyle = '#e8d4a0';
+      bc.fill();
+      bc.strokeStyle = '#8a5c2a';
+      bc.lineWidth = 1.5;
+      bc.stroke();
+      bc.restore();
+
+      if (isTigerStart) {
+        drawPawPrintOn(bc, pos.x, pos.y, 14);
+      }
+    }
+  }
+}
+
+function drawPawPrintOn(bc, cx, cy, r) {
+  bc.save();
+  bc.globalAlpha = 0.35;
+  bc.fillStyle = '#f47010';
+  bc.beginPath();
+  bc.ellipse(cx, cy+r*0.3, r*0.45, r*0.35, 0, 0, Math.PI*2);
+  bc.fill();
+  const toeAngles = [-0.9, -0.3, 0.3, 0.9];
+  toeAngles.forEach(a => {
+    bc.beginPath();
+    bc.ellipse(cx + Math.sin(a)*r*0.5, cy - r*0.2 + Math.cos(a)*r*0.15, r*0.18, r*0.22, a, 0, Math.PI*2);
+    bc.fill();
+  });
+  bc.restore();
+}
+
+function drawBoard() {
+  if (!boardCanvas || boardCanvas.width !== W || boardCanvas.height !== H) buildBoardCanvas();
+  ctx.drawImage(boardCanvas, 0, 0);
+}
+
+function drawPawPrint(cx, cy, r) {
+  ctx.save();
+  ctx.globalAlpha = 0.35;
+  ctx.fillStyle = '#f47010';
+  // Main pad
+  ctx.beginPath();
+  ctx.ellipse(cx, cy+r*0.3, r*0.45, r*0.35, 0, 0, Math.PI*2);
+  ctx.fill();
+  // Toe beans
+  const toeAngles = [-0.9, -0.3, 0.3, 0.9];
+  toeAngles.forEach(a => {
+    ctx.beginPath();
+    ctx.ellipse(cx + Math.sin(a)*r*0.5, cy - r*0.2 + Math.cos(a)*r*0.15, r*0.18, r*0.22, a, 0, Math.PI*2);
+    ctx.fill();
+  });
+  ctx.restore();
+}
+
+function drawValidMoves() {
+  const gs = gameState;
+  if (!gs || !gs.validMoves) return;
+  gs.validMoves.forEach(vm => {
+    const rc = idxRC(vm.idx !== undefined ? vm.idx : vm);
+    const pos = nodeXY(rc.r, rc.c);
+    const isCapture = vm.type === 'capture';
+    const color = gs.turn === 'tiger'
+      ? (isCapture ? '#ff4400' : '#ffaa22')
+      : '#66dd44';
+    ctx.save();
+    ctx.strokeStyle = color;
+    ctx.lineWidth = 2;
+    ctx.globalAlpha = 0.7 + 0.3 * Math.sin(gs.pulseT * 4);
+    ctx.setLineDash([4, 4]);
+    ctx.beginPath();
+    ctx.arc(pos.x, pos.y, 16, 0, Math.PI*2);
+    ctx.stroke();
+    ctx.restore();
+  });
+}
+
+function drawTiger(x, y, selected, scale=1) {
+  ctx.save();
+  ctx.translate(x, y);
+  ctx.scale(scale, scale);
+  const R = CELL * 0.28;
+
+  if (selected) {
+    // Glow
+    const g = ctx.createRadialGradient(0, 0, R*0.5, 0, 0, R*2);
+    g.addColorStop(0, '#ff990055');
+    g.addColorStop(1, 'transparent');
+    ctx.fillStyle = g;
+    ctx.beginPath();
+    ctx.arc(0, 0, R*2, 0, Math.PI*2);
+    ctx.fill();
+  }
+
+  // Body circle
+  const bodyGrad = ctx.createRadialGradient(-R*0.2, -R*0.2, 0, 0, 0, R);
+  bodyGrad.addColorStop(0, '#ffb830');
+  bodyGrad.addColorStop(0.6, '#f47010');
+  bodyGrad.addColorStop(1, '#c03800');
+  ctx.beginPath();
+  ctx.arc(0, 0, R, 0, Math.PI*2);
+  ctx.fillStyle = bodyGrad;
+  ctx.fill();
+  ctx.strokeStyle = '#5c1a00';
+  ctx.lineWidth = 1.5;
+  ctx.stroke();
+
+  // Ears
+  [[-R*0.55, -R*0.75], [R*0.55, -R*0.75]].forEach(([ex, ey]) => {
+    ctx.beginPath();
+    ctx.moveTo(ex, ey+R*0.25);
+    ctx.lineTo(ex - Math.sign(ex)*R*0.3, ey - R*0.3);
+    ctx.lineTo(ex + Math.sign(ex)*R*0.25, ey);
+    ctx.closePath();
+    ctx.fillStyle = '#f47010';
+    ctx.fill();
+    ctx.strokeStyle = '#5c1a00';
+    ctx.lineWidth = 1;
+    ctx.stroke();
+    // Inner ear
+    ctx.beginPath();
+    ctx.moveTo(ex, ey+R*0.15);
+    ctx.lineTo(ex - Math.sign(ex)*R*0.15, ey - R*0.15);
+    ctx.lineTo(ex + Math.sign(ex)*R*0.12, ey+R*0.05);
+    ctx.closePath();
+    ctx.fillStyle = '#ff8888';
+    ctx.fill();
+  });
+
+  // Tiger stripes
+  ctx.strokeStyle = '#3a0a00aa';
+  ctx.lineWidth = R*0.18;
+  ctx.lineCap = 'round';
+  [[-R*0.35, -R*0.15, -R*0.2, R*0.3],
+   [0, -R*0.25, 0, R*0.35],
+   [R*0.35, -R*0.15, R*0.2, R*0.3]].forEach(([x1,y1,x2,y2]) => {
+    ctx.beginPath();
+    ctx.moveTo(x1, y1); ctx.lineTo(x2, y2);
+    ctx.stroke();
+  });
+
+  // Eyes
+  [[-R*0.35, -R*0.15], [R*0.35, -R*0.15]].forEach(([ex, ey]) => {
+    ctx.beginPath();
+    ctx.ellipse(ex, ey, R*0.18, R*0.14, 0, 0, Math.PI*2);
+    ctx.fillStyle = '#ffee00';
+    ctx.fill();
+    ctx.beginPath();
+    ctx.ellipse(ex, ey, R*0.09, R*0.12, 0, 0, Math.PI*2);
+    ctx.fillStyle = '#1a0a00';
+    ctx.fill();
+    // Glint
+    ctx.beginPath();
+    ctx.arc(ex+R*0.04, ey-R*0.04, R*0.04, 0, Math.PI*2);
+    ctx.fillStyle = '#ffffff99';
+    ctx.fill();
+  });
+
+  // Nose
+  ctx.beginPath();
+  ctx.ellipse(0, R*0.08, R*0.12, R*0.08, 0, 0, Math.PI*2);
+  ctx.fillStyle = '#cc3300';
+  ctx.fill();
+
+  // Mouth
+  ctx.strokeStyle = '#5c1a00';
+  ctx.lineWidth = 1.2;
+  ctx.beginPath();
+  ctx.moveTo(-R*0.15, R*0.2); ctx.quadraticCurveTo(-R*0.08, R*0.3, 0, R*0.22);
+  ctx.moveTo(0, R*0.22); ctx.quadraticCurveTo(R*0.08, R*0.3, R*0.15, R*0.2);
+  ctx.stroke();
+
+  // Whiskers
+  ctx.strokeStyle = '#ffffffcc'; ctx.lineWidth = 0.8;
+  [[-R*0.15, R*0.12, -R*0.7, R*0.05],
+   [-R*0.15, R*0.18, -R*0.7, R*0.18],
+   [R*0.15, R*0.12, R*0.7, R*0.05],
+   [R*0.15, R*0.18, R*0.7, R*0.18]].forEach(([x1,y1,x2,y2]) => {
+    ctx.beginPath(); ctx.moveTo(x1,y1); ctx.lineTo(x2,y2); ctx.stroke();
+  });
+
+  ctx.restore();
+}
+
+function drawGoat(x, y, selected, alpha=1, scale=1) {
+  ctx.save();
+  ctx.translate(x, y);
+  ctx.scale(scale, scale);
+  ctx.globalAlpha = alpha;
+  const R = CELL * 0.25;
+
+  if (selected) {
+    const g = ctx.createRadialGradient(0, 0, R*0.5, 0, 0, R*2);
+    g.addColorStop(0, '#66ff2255');
+    g.addColorStop(1, 'transparent');
+    ctx.fillStyle = g;
+    ctx.beginPath();
+    ctx.arc(0, 0, R*2, 0, Math.PI*2);
+    ctx.fill();
+  }
+
+  // Body circle
+  const bodyGrad = ctx.createRadialGradient(-R*0.2, -R*0.2, 0, 0, 0, R);
+  bodyGrad.addColorStop(0, '#ffffff');
+  bodyGrad.addColorStop(0.6, '#e8e0cc');
+  bodyGrad.addColorStop(1, '#c8b890');
+  ctx.beginPath();
+  ctx.arc(0, 0, R, 0, Math.PI*2);
+  ctx.fillStyle = bodyGrad;
+  ctx.fill();
+  ctx.strokeStyle = '#6a5030';
+  ctx.lineWidth = 1.5;
+  ctx.stroke();
+
+  // Curved horns
+  ctx.strokeStyle = '#8a6030';
+  ctx.lineWidth = R*0.15;
+  ctx.lineCap = 'round';
+  // Left horn
+  ctx.beginPath();
+  ctx.moveTo(-R*0.25, -R*0.6);
+  ctx.quadraticCurveTo(-R*0.8, -R*1.0, -R*0.5, -R*1.3);
+  ctx.stroke();
+  // Right horn
+  ctx.beginPath();
+  ctx.moveTo(R*0.25, -R*0.6);
+  ctx.quadraticCurveTo(R*0.8, -R*1.0, R*0.5, -R*1.3);
+  ctx.stroke();
+
+  // Eyes
+  [[-R*0.32, -R*0.1], [R*0.32, -R*0.1]].forEach(([ex, ey]) => {
+    ctx.beginPath();
+    ctx.ellipse(ex, ey, R*0.15, R*0.1, 0, 0, Math.PI*2);
+    ctx.fillStyle = '#2a1800';
+    ctx.fill();
+    ctx.beginPath();
+    ctx.arc(ex+R*0.04, ey-R*0.03, R*0.04, 0, Math.PI*2);
+    ctx.fillStyle = '#ffffff88';
+    ctx.fill();
+  });
+
+  // Nose
+  ctx.beginPath();
+  ctx.ellipse(0, R*0.15, R*0.12, R*0.07, 0, 0, Math.PI*2);
+  ctx.fillStyle = '#c8a0a0';
+  ctx.fill();
+
+  // Beard
+  ctx.strokeStyle = '#c8b890';
+  ctx.lineWidth = R*0.18;
+  ctx.lineCap = 'round';
+  ctx.beginPath();
+  ctx.moveTo(0, R*0.55);
+  ctx.quadraticCurveTo(-R*0.1, R*0.85, R*0.05, R*0.95);
+  ctx.stroke();
+
+  // Ears
+  [[-R*0.75, -R*0.25], [R*0.75, -R*0.25]].forEach(([ex, ey]) => {
+    ctx.beginPath();
+    ctx.ellipse(ex, ey, R*0.2, R*0.13, Math.sign(ex)*0.5, 0, Math.PI*2);
+    ctx.fillStyle = '#e8d0b0';
+    ctx.fill();
+    ctx.strokeStyle = '#6a5030';
+    ctx.lineWidth = 1;
+    ctx.stroke();
+  });
+
+  ctx.restore();
+}
+
+function drawPieces() {
+  drawPiecesWithFlash();
+}
+
+function drawAnimations(ts) {
+  const gs = gameState;
+  if (!gs) return;
+  // Particles
+  gs.particles = gs.particles.filter(p => p.life > 0);
+  gs.particles.forEach(p => {
+    ctx.save();
+    ctx.globalAlpha = p.life;
+    ctx.fillStyle = p.color;
+    ctx.beginPath();
+    ctx.arc(p.x, p.y, p.r * p.life, 0, Math.PI*2);
+    ctx.fill();
+    ctx.restore();
+    p.x += p.vx; p.y += p.vy;
+    p.vy += 0.15;
+    p.life -= 0.02;
+  });
+}
+
+// ─── Animation system ─────────────────────────────────────────────────────────
+let animPieces = {}; // idx -> { x, y, targetX, targetY, type, alpha, flash }
+
+function getAnimPiece(idx) {
+  const rc = idxRC(idx);
+  const pos = nodeXY(rc.r, rc.c);
+  if (!animPieces[idx]) {
+    animPieces[idx] = { x: pos.x, y: pos.y - 60, targetX: pos.x, targetY: pos.y, vy: 0, alpha: 1, flash: 0 };
+  }
+  return animPieces[idx];
+}
+
+// ─── Main Loop ───────────────────────────────────────────────────────────────
+// ─── Input Handling ───────────────────────────────────────────────────────────
+function getClickedNode(ex, ey) {
+  let best = null, bestD = Infinity;
+  for (let r = 0; r < ROWS; r++) {
+    for (let c = 0; c < COLS; c++) {
+      const pos = nodeXY(r, c);
+      const d = Math.hypot(pos.x - ex, pos.y - ey);
+      if (d < bestD) { bestD = d; best = { r, c, idx: nodeIdx(r,c) }; }
+    }
+  }
+  if (bestD > CELL * 0.55) return null;
+  return best;
+}
+
+canvas.addEventListener('click', e => {
+  if (!gameState || gameState.winner || gameState.aiThinking) return;
+  const rect = canvas.getBoundingClientRect();
+  const ex = e.clientX - rect.left, ey = e.clientY - rect.top;
+  const node = getClickedNode(ex, ey);
+  if (!node) return;
+  handleClick(node.idx);
+});
+
+function handleClick(idx) {
+  const gs = gameState;
+  const mode = gs.mode;
+
+  // Determine if current turn is AI
+  const isAITurn = (mode === 'pva-goat' && gs.turn === 'goat') ||
+                   (mode === 'pva-tiger' && gs.turn === 'tiger');
+  if (isAITurn) return;
+
+  if (gs.turn === 'goat') {
+    handleGoatClick(idx);
+  } else {
+    handleTigerClick(idx);
+  }
+}
+
+function handleGoatClick(idx) {
+  const gs = gameState;
+  if (gs.phase === 1) {
+    // Placement
+    if (gs.board[idx] !== null) { sfxInvalid(); return; }
+    applyGoatPlace(gs, idx);
+    sfxGoatPlace();
+    animDropIn(idx, 'goat');
+    const win = checkWin(gs);
+    if (win) { gs.winner = win; setTimeout(() => showWin(win), 400); return; }
+    nextTurn(gs);
+    scheduleAI();
+  } else {
+    // Movement
+    if (gs.selected === null) {
+      if (gs.board[idx] !== 'goat') { sfxInvalid(); return; }
+      gs.selected = idx;
+      gs.validMoves = getGoatMoves(gs, idx).map(i => i);
+    } else {
+      if (idx === gs.selected) { gs.selected = null; gs.validMoves = []; return; }
+      // Check if valid move
+      if (gs.validMoves.includes(idx)) {
+        const from = gs.selected;
+        applyGoatMove(gs, from, idx);
+        sfxGoatPlace();
+        const win = checkWin(gs);
+        if (win) { gs.winner = win; setTimeout(() => showWin(win), 400); return; }
+        nextTurn(gs);
+        scheduleAI();
+      } else if (gs.board[idx] === 'goat') {
+        gs.selected = idx;
+        gs.validMoves = getGoatMoves(gs, idx);
+      } else {
+        sfxInvalid();
+        gs.selected = null; gs.validMoves = [];
+      }
+    }
+  }
+}
+
+function handleTigerClick(idx) {
+  const gs = gameState;
+  if (gs.selected === null) {
+    if (!gs.tigers.includes(idx)) { sfxInvalid(); return; }
+    gs.selected = idx;
+    const { moves, captures } = getTigerMoves(gs, idx);
+    gs.validMoves = [
+      ...moves.map(m => m),
+      ...captures.map(c => ({ idx: c.land, type: 'capture', captured: c.captured }))
+    ];
+  } else {
+    if (idx === gs.selected) { gs.selected = null; gs.validMoves = []; return; }
+    // Check if this is a valid move destination
+    const capMove = gs.validMoves.find(m => m.idx === idx && m.type === 'capture');
+    const normMove = gs.validMoves.includes(idx);
+    if (capMove) {
+      const from = gs.selected;
+      doTigerCapture(gs, from, capMove.land, capMove.captured);
+    } else if (normMove) {
+      const from = gs.selected;
+      applyTigerMove(gs, from, idx);
+      sfxTigerMove();
+      const win = checkWin(gs);
+      if (win) { gs.winner = win; setTimeout(() => showWin(win), 400); return; }
+      nextTurn(gs);
+      scheduleAI();
+    } else if (gs.tigers.includes(idx)) {
+      gs.selected = idx;
+      const { moves, captures } = getTigerMoves(gs, idx);
+      gs.validMoves = [
+        ...moves.map(m => m),
+        ...captures.map(c => ({ idx: c.land, type: 'capture', captured: c.captured }))
+      ];
+    } else {
+      sfxInvalid();
+      gs.selected = null; gs.validMoves = [];
+    }
+  }
+}
+
+function doTigerCapture(gs, from, land, captured) {
+  sfxCapture();
+  // Flash captured goat red then remove
+  flashGoat(captured, () => {
+    applyTigerMove(gs, from, land, captured);
+    const win = checkWin(gs);
+    if (win) { gs.winner = win; setTimeout(() => showWin(win), 400); return; }
+    nextTurn(gs);
+    scheduleAI();
+  });
+}
+
+function flashGoat(idx, cb) {
+  gameState._flashGoat = idx;
+  let called = false;
+  setTimeout(() => {
+    if (gameState) gameState._flashGoat = null;
+    if (!called) { called = true; cb(); }
+  }, 320);
+}
+
+// Override drawPieces to handle flash
+const _origDrawPieces = drawPieces;
+
+function drawPiecesWithFlash() {
+  const gs = gameState;
+  if (!gs) return;
+  // Draw goats
+  gs.goats.forEach(gi => {
+    const rc = idxRC(gi);
+    const pos = nodeXY(rc.r, rc.c);
+    const sel = gs.turn === 'goat' && gs.selected === gi && gs.phase === 2;
+    const isFlash = gs._flashGoat === gi;
+    if (isFlash) {
+      // Draw red flash
+      ctx.save();
+      ctx.globalAlpha = 0.7 + 0.3*Math.sin(Date.now()*0.05);
+      ctx.beginPath();
+      ctx.arc(pos.x, pos.y, CELL*0.28, 0, Math.PI*2);
+      ctx.fillStyle = '#ff2200';
+      ctx.fill();
+      ctx.restore();
+    } else {
+      drawGoat(pos.x, pos.y, sel);
+    }
+  });
+  // Draw tigers
+  gs.tigers.forEach(ti => {
+    const rc = idxRC(ti);
+    const pos = nodeXY(rc.r, rc.c);
+    const sel = gs.selected === ti;
+    drawTiger(pos.x, pos.y, sel, sel ? 1.12 : 1);
+  });
+}
+
+// ─── AI scheduling ────────────────────────────────────────────────────────────
+function scheduleAI() {
+  const gs = gameState;
+  if (!gs || gs.winner) return;
+  const mode = gs.mode;
+  const isAITurn = (mode === 'pva-goat' && gs.turn === 'goat') ||
+                   (mode === 'pva-tiger' && gs.turn === 'tiger');
+  if (!isAITurn) return;
+
+  gs.aiThinking = true;
+  const delay = 400 + Math.random() * 200;
+  setTimeout(() => {
+    if (!gameState || gameState.winner) return;
+    runAI();
+  }, delay);
+}
+
+function runAI() {
+  const gs = gameState;
+  if (!gs || gs.winner) return;
+  gs.aiThinking = false;
+
+  if (gs.turn === 'goat') {
+    const move = aiGoatMove(gs);
+    if (!move) { nextTurn(gs); scheduleAI(); return; }
+    if (move.type === 'place') {
+      applyGoatPlace(gs, move.idx);
+      sfxGoatPlace();
+    } else {
+      applyGoatMove(gs, move.from, move.to);
+      sfxGoatPlace();
+    }
+  } else {
+    const move = aiTigerMove(gs);
+    if (!move) { nextTurn(gs); scheduleAI(); return; }
+    if (move.type === 'capture') {
+      doTigerCapture(gs, move.tiger, move.land, move.captured);
+      return; // nextTurn called inside flashGoat cb
+    } else {
+      applyTigerMove(gs, move.tiger, move.land);
+      sfxTigerMove();
+    }
+  }
+
+  const win = checkWin(gs);
+  if (win) { gs.winner = win; setTimeout(() => showWin(win), 400); return; }
+  nextTurn(gs);
+  scheduleAI();
+}
+
+function animDropIn(idx, type) {
+  // Visual handled by main draw — just a simple effect via particle
+  const rc = idxRC(idx);
+  const pos = nodeXY(rc.r, rc.c);
+  if (gameState) {
+    for (let i = 0; i < 5; i++) {
+      gameState.particles.push({
+        x: pos.x, y: pos.y,
+        vx: (Math.random()-0.5)*3,
+        vy: -Math.random()*3,
+        life: 0.8,
+        color: type === 'goat' ? '#90d870' : '#f47010',
+        r: 2+Math.random()*3,
+      });
+    }
+  }
+}
+
+// ─── Override main draw to use flash version ──────────────────────────────────
+// Patch loop to use flash version
+let lastTs = 0;
+function loopPatched(ts) {
+  const dt = Math.min((ts - lastTs) / 1000, 0.05);
+  lastTs = ts;
+  if (gameState) gameState.pulseT = (gameState.pulseT || 0) + dt;
+
+  ctx.clearRect(0, 0, W, H);
+  drawBackground();
+
+  if (gameState) {
+    drawBoard();
+    drawValidMoves();
+    drawPiecesWithFlash();
+    drawAnimations(ts);
+  }
+
+  rafId = requestAnimationFrame(loopPatched);
+}
+
+// ─── Init ─────────────────────────────────────────────────────────────────────
+window.addEventListener('resize', () => { bgCanvas = null; boardCanvas = null; resize(); });
+
+canvas = document.getElementById('c');
+ctx = canvas.getContext('2d');
+resize();
+
+// Prevent double-draw by not calling the old loop
+cancelAnimationFrame(rafId);
+rafId = requestAnimationFrame(loopPatched);
+</script>
+</body>
+</html>
